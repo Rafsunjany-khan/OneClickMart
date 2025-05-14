@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Cart</title>
+  <style>
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 30px auto;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border: 1px solid #ccc;
+    }
+    img {
+      width: 50px;
+      height: 50px;
+      object-fit: cover;
+    }
+    .cart-buttons {
+      margin-top: 20px;
+      text-align: right;
+    }
+    .cart-buttons button {
+      padding: 10px 15px;
+      margin-left: 10px;
+    }
+    .summary {
+      width: 100%;
+      margin-top: 20px;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+
+<h2 style="text-align:center;">🛒 Your Shopping Cart</h2>
+
+{% if cart %}
+<form method="post" action="{% url 'update_cart' %}">
+  {% csrf_token %}
+  <table>
+    <thead>
+      <tr>
+        <th>Serial No</th>
+        <th>Image</th>
+        <th>Product Title</th>
+        <th>Quantity</th>
+        <th>Price</th>
+        <th>Total Price</th>
+        <th>Action</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for key, item in cart.items %}
+      <tr>
+        <td>{{ forloop.counter }}</td>
+        <td><img src="{{ item.image }}" alt="{{ item.name }}"></td>
+        <td>{{ item.name }}</td>
+        <td>{{ item.quantity }}</td>
+        <td>${{ item.price }}</td>
+        <td>${{ item.total_price }}</td>        <td>
+          <button type="submit" name="action" value="add_{{ key }}">➕</button>
+          <button type="submit" name="action" value="remove_{{ key }}">➖</button>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</form>
+
+<!-- Cart Summary -->
+<div class="summary">
+  <p><strong>Discount:</strong> $0.00</p>
+  <p><strong>Total Payable:</strong> ${{ total }}</p>
+</div>
+
+<!-- Buttons -->
+<div class="cart-buttons">
+  <form action="{% url 'clear_cart' %}" method="post" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" style="background:red; color:white;">Clear Cart</button>
+  </form>
+  <button style="background:green; color:white;">Proceed</button>
+</div>
+
+{% else %}
+<p style="text-align:center;">🛒 Your cart is empty.</p>
+{% endif %}
+
+</body>
+</html>

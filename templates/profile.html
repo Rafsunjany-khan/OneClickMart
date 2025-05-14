@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Profile</title>
+</head>
+<body>
+
+<!-- Show logged-in user email for debug/confirmation -->
+<p>Logged in as: {{ request.user.email }}</p>
+
+<h2>User Profile</h2>
+<form method="POST" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    <label>Profile Image:</label><br>
+    <input type="file" name="profile_image"><br><br>
+
+    <label>Address Line 1:</label><br>
+    <input type="text" name="address_line_1" value="{{ profile.address_line_1 }}"><br><br>
+
+    <label>Address Line 2:</label><br>
+    <input type="text" name="address_line_2" value="{{ profile.address_line_2 }}"><br><br>
+
+    <label>Phone Number:</label><br>
+    <input type="text" name="phone_number" value="{{ profile.phone_number }}"><br><br>
+
+    <label>City:</label><br>
+    <input type="text" name="city" value="{{ profile.city }}"><br><br>
+
+    <label>Postcode:</label><br>
+    <input type="text" name="postcode" value="{{ profile.postcode }}"><br><br>
+
+    <button type="submit">Save Profile</button>
+</form>
+</body>
+</html>

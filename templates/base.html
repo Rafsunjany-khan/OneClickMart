@@ -1,0 +1,253 @@
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UniVendor</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    /* Custom CSS */
+    .navbar-brand, .nav-link {
+      color: #fff;
+    }
+    .navbar-brand:hover, .nav-link:hover {
+      color: #f0a500;
+    }
+    .product-card {
+      margin: 15px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+    .product-price {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .product-old-price {
+      text-decoration: line-through;
+      color: #777;
+    }
+    .badge-new {
+      background-color: #f0a500;
+      color: white;
+    }
+    .footer {
+      background-color: #333;
+      color: white;
+      padding: 20px;
+    }
+    .footer a {
+      color: white;
+    }
+    .footer a:hover {
+      color: #f0a500;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar Section -->
+<nav class="navbar navbar-expand-lg navbar-light bg-primary">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{% url 'home' %}">OneClickMart</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'home' %}">HOME</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">PRODUCTS</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="#">CART</a>
+        </li>
+        <!-- Trigger Button -->
+<button type="button" class="btn btn-primary" onclick="showLoginModal()">Login</button>
+
+<!-- Login Modal -->
+        {% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="loginModalLabel">🌟 Top Shop Name</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="id_username" class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" id="id_username" required>
+          </div>
+          <div class="mb-3">
+            <label for="id_password" class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" id="id_password" required>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="#">Forgot password?</a>
+            <a href="{% url 'signup' %}">Register</a>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success w-100">Login</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Exclusive Products Slider -->
+<div id="exclusiveCarousel" class="carousel slide" data-bs-ride="carousel">
+  <div class="carousel-inner">
+    <div class="carousel-item active">
+      <div class="position-relative">
+        <img src="{% static 'image/banner/banner.jpg' %}" class="d-block w-100" alt="Exclusive Product 1">
+        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
+          <h2>Exclusive Product</h2>
+          <p>Get the latest product now!</p>
+          <button class="btn btn-primary">Add to Cart</button>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-item">
+      <div class="position-relative">
+        <img src="{% static 'image/banner/banner1.jpg' %}" class="d-block w-100" alt="Exclusive Product 2">
+        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
+          <h2>Exclusive Product 2</h2>
+          <p>This is another great product!</p>
+          <button class="btn btn-primary">Add to Cart</button>
+        </div>
+      </div>
+    </div>
+    <div class="carousel-item">
+      <div class="position-relative">
+        <img src="{% static 'image/banner/banner4.jpg' %}" class="d-block w-100" alt="Exclusive Product 3">
+        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
+          <h2>Exclusive Product 3</h2>
+          <p>This is another great product!</p>
+          <button class="btn btn-primary">Add to Cart</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <button class="carousel-control-prev" type="button" data-bs-target="#exclusiveCarousel" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Previous</span>
+  </button>
+  <button class="carousel-control-next" type="button" data-bs-target="#exclusiveCarousel" data-bs-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Next</span>
+  </button>
+</div>
+
+<!-- Product Card Section -->
+<div class="container my-5">
+  <div class="row g-4">
+    <div class="col-md-4">
+      <div class="card product-card h-100">
+        <img src="{% static 'image/Products/camera.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+        <div class="card-body">
+          <h5 class="card-title">Canon Camera</h5>
+          <p class="product-price">$25</p>
+          <button class="btn btn-primary"
+                  onclick="addToCart('1', 'Canon Camera', 25, '{% static 'image/Products/camera.jpg' %}')">
+            Add To Cart
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product 2 -->
+    <div class="col-md-4">
+      <div class="card product-card h-100">
+        <img src="{% static 'image/Products/JVC-Dymanic-Sound.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+        <div class="card-body">
+          <h5 class="card-title">JVC Dynamic Sound</h5>
+          <p class="product-price">$45</p>
+          <button class="btn btn-primary"
+                  onclick="addToCart('2', 'JVC Dynamic Sound', 45, '{% static 'image/Products/JVC-Dymanic-Sound.jpg' %}')">
+            Add To Cart
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Product 3 -->
+    <div class="col-md-4">
+      <div class="card product-card h-100">
+        <img src="{% static 'image/Products/Iphone16plus.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+        <div class="card-body">
+          <h5 class="card-title">iPhone 16 Plus</h5>
+          <p class="product-price">$55</p>
+          <button class="btn btn-primary"
+                  onclick="addToCart('3', 'iPhone 16 Plus', 55, '{% static 'image/Products/Iphone16plus.jpg' %}')">
+            Add To Cart
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Footer Section -->
+<footer class="footer text-center mt-5 py-4 bg-dark text-white">
+  <div class="container">
+    <div class="row">
+      <!-- Company Photo Section -->
+      <div class="col-md-4">
+        <img src="{% static 'image/logo.png' %}" alt="Company Logo" class="img-fluid" style="max-width: 150px;">
+      </div>
+
+      <!-- Social Media Icons Section -->
+      <div class="col-md-4">
+        <p>
+          <a href="#" class="text-white mx-2"><i class="fab fa-facebook"></i> Facebook</a> |
+          <a href="#" class="text-white mx-2"><i class="fab fa-instagram"></i> Instagram</a> |
+          <a href="#" class="text-white mx-2"><i class="fab fa-twitter"></i> Twitter</a>
+        </p>
+      </div>
+
+      <!-- Address and Contact Information Section -->
+      <div class="col-md-4">
+        <p>Contact Information:</p>
+        <p>Email: info@univendor.com</p>
+        <p>Phone: 123-456-7890</p>
+      </div>
+    </div>
+      <div class="row">
+          <p>
+          <a href="#" class="text-white">Terms & Conditions</a> |
+          <a href="#" class="text-white">Privacy Policy</a>
+        </p>
+      </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+</body>
+<script>
+  function showLoginModal() {
+    var loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+    loginModal.show();
+  }
+</script>
+
+</html>
