@@ -62,7 +62,7 @@
           <a class="nav-link" href="#">PRODUCTS</a>
         </li>
         <li class="nav-item">
-          <a class="nav-link" href="#">CART</a>
+          <a class="nav-link" href="{% url 'cart' %}">CART</a>
         </li>
         <!-- Trigger Button -->
 <button type="button" class="btn btn-primary" onclick="showLoginModal()">Login</button>
@@ -155,19 +155,12 @@
           <div class="card-body">
             <h5 class="card-title">{{ product.name }}</h5>
             <p class="product-price">${{ product.price }}</p>
-            {% with product.images.first as image %}
-              {% if image %}
-                <button class="btn btn-primary"
-                  onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ image.image.url }}')">
-                  Add To Cart
-                </button>
-              {% else %}
-                <button class="btn btn-primary"
-                  onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '')">
-                  Add To Cart
-                </button>
-              {% endif %}
-            {% endwith %}
+
+            <form action="{% url 'add_to_cart' product.id %}" method="post">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary">Add To Cart</button>
+            </form>
+
           </div>
         </div>
       </div>

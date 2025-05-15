@@ -1,93 +1,92 @@
-<!DOCTYPE html>
-<html>
+{% load static %}
+{% load custom_filters %}
+
+<html lang="en">
 <head>
-  <title>Cart</title>
+  <meta charset="UTF-8">
+  <title>Your Cart</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      margin: 30px auto;
-    }
-    th, td {
-      padding: 12px;
-      text-align: center;
-      border: 1px solid #ccc;
-    }
-    img {
-      width: 50px;
-      height: 50px;
+    .cart-img {
+      width: 80px;
+      height: 80px;
       object-fit: cover;
     }
-    .cart-buttons {
-      margin-top: 20px;
-      text-align: right;
-    }
-    .cart-buttons button {
-      padding: 10px 15px;
-      margin-left: 10px;
-    }
-    .summary {
-      width: 100%;
-      margin-top: 20px;
-      text-align: right;
+    .cart-table th, .cart-table td {
+      vertical-align: middle;
     }
   </style>
 </head>
 <body>
+<div class="container my-5">
 
-<h2 style="text-align:center;">🛒 Your Shopping Cart</h2>
+  <!-- Heading -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>Your Cart</h2>
+    <p class="text-muted">Logged in as: <strong>{{ request.user.email }}</strong></p>
+  </div>
 
-{% if cart %}
-<form method="post" action="{% url 'update_cart' %}">
-  {% csrf_token %}
-  <table>
-    <thead>
-      <tr>
-        <th>Serial No</th>
-        <th>Image</th>
-        <th>Product Title</th>
-        <th>Quantity</th>
-        <th>Price</th>
-        <th>Total Price</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for key, item in cart.items %}
-      <tr>
-        <td>{{ forloop.counter }}</td>
-        <td><img src="{{ item.image }}" alt="{{ item.name }}"></td>
-        <td>{{ item.name }}</td>
-        <td>{{ item.quantity }}</td>
-        <td>${{ item.price }}</td>
-        <td>${{ item.total_price }}</td>        <td>
-          <button type="submit" name="action" value="add_{{ key }}">➕</button>
-          <button type="submit" name="action" value="remove_{{ key }}">➖</button>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</form>
+  {% if cart_items %}
+    <form method="post" action="{% url 'update_cart' %}">
+      {% csrf_token %}
+      <table class="table table-bordered cart-table">
+        <thead class="table-light">
+          <tr>
+            <th>Image</th>
+            <th>Product Name</th>
+            <th>Unit Price</th>
+            <th>Quantity</th>
+            <th>Total</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for item in cart_items %}
+          <tr>
+            <td>
+              {% if item.product.images.first %}
+                <img src="{{ item.product.images.first.image.url }}" class="cart-img">
+              {% else %}
+                <img src="{% static 'image/no-image.jpg' %}" class="cart-img">
+              {% endif %}
+            </td>
+            <td>{{ item.product.name }}</td>
+            <td>${{ item.product.price }}</td>
+            <td>{{ item.quantity }}</td>
+            <td>${{ item.quantity|mul:item.product.price }}</td>
+            <td>
+              <form method="post" action="{% url 'update_cart' %}" class="d-flex gap-1">
+                {% csrf_token %}
+                <input type="hidden" name="product_id" value="{{ item.product.id }}">
+                <button type="submit" name="action" value="add" class="btn btn-sm btn-success">+</button>
+                <button type="submit" name="action" value="remove" class="btn btn-sm btn-danger">-</button>
+              </form>
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    </form>
 
-<!-- Cart Summary -->
-<div class="summary">
-  <p><strong>Discount:</strong> $0.00</p>
-  <p><strong>Total Payable:</strong> ${{ total }}</p>
+    <!-- Summary -->
+    <div class="card p-4">
+      <h5 class="mb-3">Cart Summary</h5>
+      <p>Discount (if any): <strong>$0.00</strong></p>
+      <p>VAT (5%): <strong>${{ total|floatformat:2|mul:"0.05"|floatformat:2 }}</strong></p>
+      <p class="fw-bold">Grand Total: ${{ total|add:total|mul:"0.05"|floatformat:2 }}</p>
+
+      <div class="d-flex justify-content-between mt-4">
+        <form method="post" action="{% url 'clear_cart' %}">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-outline-danger">Clear Cart</button>
+        </form>
+        <a href="{% url 'make_payment' %}" class="btn btn-primary">Make Payment to Proceed</a>
+      </div>
+    </div>
+
+  {% else %}
+    <p>Your cart is empty.</p>
+  {% endif %}
 </div>
-
-<!-- Buttons -->
-<div class="cart-buttons">
-  <form action="{% url 'clear_cart' %}" method="post" style="display:inline;">
-    {% csrf_token %}
-    <button type="submit" style="background:red; color:white;">Clear Cart</button>
-  </form>
-  <button style="background:green; color:white;">Proceed</button>
-</div>
-
-{% else %}
-<p style="text-align:center;">🛒 Your cart is empty.</p>
-{% endif %}
-
 </body>
 </html>

@@ -1,15 +1,17 @@
 from django.contrib.auth.models import User
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
+from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
-from django.contrib.auth.decorators import login_required
-from .models import UserProfile, Slider, Product
+from .models import UserProfile, Slider, Product, CartItem
 
+# Home Page
 def home(request):
     sliders = Slider.objects.all()
     products = Product.objects.filter(available=True).prefetch_related('images')
     return render(request, 'base.html', {'sliders': sliders, 'products': products})
 
+# User Signup
 def signup(request):
     if request.method == 'POST':
         fname = request.POST['first_name']
@@ -23,35 +25,28 @@ def signup(request):
             user.first_name = fname
             user.last_name = lname
             user.save()
-            return redirect('login')  # or wherever
+            return redirect('login')
     return render(request, 'signup.html')
 
-
+# Login View
 def custom_login(request):
     if request.method == 'POST':
-        print(request.POST)  # Log the entire POST data
-        email = request.POST.get('email')  # or 'email' depending on the form field name
+        email = request.POST.get('email')
         password = request.POST.get('password')
-
-        print(f"Attempting to authenticate user: {email}, password: {password}")
 
         user = authenticate(request, username=email, password=password)
         if user is not None:
-            print(f"Authentication successful for: {user.username}")
             login(request, user)
             return redirect('profile')
         else:
-            print("Authentication failed.")
             messages.error(request, "Invalid email or password.")
-            return redirect('home')  # Keep the user on the same page
+            return redirect('home')
     return redirect('home')
 
-
-
-
+# Profile View
 @login_required
 def profile(request):
-    user = request.user  # ✅ This is always the currently logged-in user
+    user = request.user
     profile, created = UserProfile.objects.get_or_create(user=user)
 
     if request.method == 'POST':
@@ -66,49 +61,64 @@ def profile(request):
 
     return render(request, 'profile.html', {'profile': profile})
 
-
-# Remove the redundant profile function that checks the session
-
+# Logout
 def user_logout(request):
     logout(request)
     return redirect('home')
 
+# Add to Cart
+@login_required
+def add_to_cart(request, product_id):
+    product = get_object_or_404(Product, id=product_id)
+    cart_item, created = CartItem.objects.get_or_create(user=request.user, product=product)
 
+    if not created:
+        cart_item.quantity += 1
+        cart_item.save()
+        messages.success(request, f"Updated quantity for {product.name} in your cart.")
+    else:
+        messages.success(request, f"Added {product.name} to your cart.")
+
+    return redirect('cart')
+
+# View Cart (Model-Based)
+@login_required
 def cart_view(request):
-    cart = request.session.get('cart', {})
-    total = 0
-
-    for key, item in cart.items():
-        item['total_price'] = item['price'] * item['quantity']  # add total per item
-        total += item['total_price']
+    cart_items = CartItem.objects.filter(user=request.user).select_related('product')
+    total = sum(item.product.price * item.quantity for item in cart_items)
 
     return render(request, 'cart.html', {
-        'cart': cart,
+        'cart_items': cart_items,
         'total': total
     })
 
-
+# Update Cart (Increase or Decrease)
+@login_required
 def update_cart(request):
     if request.method == 'POST':
-        cart = request.session.get('cart', {})
         action = request.POST.get('action')
+        product_id = request.POST.get('product_id')
+        cart_item = CartItem.objects.filter(user=request.user, product_id=product_id).first()
 
-        if action:
-            action_type, product_id = action.split('_', 1)
-            if product_id in cart:
-                if action_type == 'add':
-                    cart[product_id]['quantity'] += 1
-                elif action_type == 'remove':
-                    cart[product_id]['quantity'] -= 1
-                    if cart[product_id]['quantity'] <= 0:
-                        del cart[product_id]
+        if cart_item:
+            if action == 'add':
+                cart_item.quantity += 1
+                cart_item.save()
+            elif action == 'remove':
+                cart_item.quantity -= 1
+                if cart_item.quantity <= 0:
+                    cart_item.delete()
+                else:
+                    cart_item.save()
 
-        request.session['cart'] = cart
     return redirect('cart')
 
-
-#@csrf_exempt
+# Clear Cart
+@login_required
 def clear_cart(request):
     if request.method == 'POST':
-        request.session.pop('cart', None)
+        CartItem.objects.filter(user=request.user).delete()
     return redirect('cart')
+
+def make_payment(request):
+    return render(request, 'payment.html')

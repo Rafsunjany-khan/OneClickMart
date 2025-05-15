@@ -1,40 +1,175 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Profile</title>
+    <title>User Profile</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f9f9f9;
+        }
+        .logout {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background-color: #007BFF;
+            color: white;
+            padding: 8px 14px;
+            border-radius: 4px;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .container {
+            display: flex;
+            gap: 30px;
+            max-width: 1200px;
+            margin: 60px auto 0; /* leave space for logout */
+        }
+        .profile-section {
+            flex: 0 0 40%;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .profile-section img {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-bottom: 15px;
+            border: 3px solid #007BFF;
+        }
+        .profile-info {
+            text-align: left;
+        }
+        .profile-info label {
+            font-weight: bold;
+            display: block;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+        .profile-info input[type="text"],
+        .profile-info input[type="file"] {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .profile-info button {
+            margin-top: 25px;
+            padding: 12px 20px;
+            cursor: pointer;
+            background-color: #007BFF;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            font-size: 16px;
+            width: 100%;
+        }
+        .cart-section {
+            flex: 0 0 60%;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 20px;
+            box-sizing: border-box;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .section-title {
+            font-size: 22px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #007BFF;
+            padding-bottom: 8px;
+            color: #007BFF;
+        }
+        .cart-item, .purchase-history-item {
+            border-bottom: 1px solid #eee;
+            padding: 12px 0;
+            font-size: 16px;
+        }
+        .cart-item:last-child, .purchase-history-item:last-child {
+            border-bottom: none;
+        }
+        .empty-message {
+            font-style: italic;
+            color: #777;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
 
-<!-- Show logged-in user email for debug/confirmation -->
-<p>Logged in as: {{ request.user.email }}</p>
+<a href="{% url 'logout' %}" class="logout">Logout</a>
 
-<h2>User Profile</h2>
-<form method="POST" enctype="multipart/form-data">
-    {% csrf_token %}
+<div class="container">
+    <!-- Profile Section -->
+    <div class="profile-section">
+        {% if profile.profile_image %}
+            <img src="{{ profile.profile_image.url }}" alt="{{ request.user.username }}'s Profile Image">
+        {% else %}
+            <img src="/static/default-profile.png" alt="Default Profile Image">
+        {% endif %}
 
-    <label>Profile Image:</label><br>
-    <input type="file" name="profile_image"><br><br>
+        <h2>{{ request.user.get_full_name|default:request.user.username }}</h2>
 
-    <label>Address Line 1:</label><br>
-    <input type="text" name="address_line_1" value="{{ profile.address_line_1 }}"><br><br>
+        <form method="POST" enctype="multipart/form-data" class="profile-info">
+            {% csrf_token %}
+            <label for="profile_image">Profile Image:</label>
+            <input type="file" id="profile_image" name="profile_image">
 
-    <label>Address Line 2:</label><br>
-    <input type="text" name="address_line_2" value="{{ profile.address_line_2 }}"><br><br>
+            <label for="address_line_1">Address Line 1:</label>
+            <input type="text" id="address_line_1" name="address_line_1" value="{{ profile.address_line_1 }}">
 
-    <label>Phone Number:</label><br>
-    <input type="text" name="phone_number" value="{{ profile.phone_number }}"><br><br>
+            <label for="address_line_2">Address Line 2:</label>
+            <input type="text" id="address_line_2" name="address_line_2" value="{{ profile.address_line_2 }}">
 
-    <label>City:</label><br>
-    <input type="text" name="city" value="{{ profile.city }}"><br><br>
+            <label for="phone_number">Phone Number:</label>
+            <input type="text" id="phone_number" name="phone_number" value="{{ profile.phone_number }}">
 
-    <label>Postcode:</label><br>
-    <input type="text" name="postcode" value="{{ profile.postcode }}"><br><br>
+            <label for="city">City:</label>
+            <input type="text" id="city" name="city" value="{{ profile.city }}">
 
-    <button type="submit">Save Profile</button>
-</form>
-<!-- Show user email and logout option -->
-<p>Logged in as: {{ request.user.email }}</p>
-<a href="{% url 'logout' %}">Logout</a>
-<br><br>
+            <label for="postcode">Postcode:</label>
+            <input type="text" id="postcode" name="postcode" value="{{ profile.postcode }}">
+
+            <button type="submit">Update Profile</button>
+        </form>
+    </div>
+
+    <!-- Cart & Purchase History Section -->
+    <div class="cart-section">
+        <div>
+            <h3 class="section-title">Cart Details</h3>
+            {% if cart_items %}
+                {% for item in cart_items %}
+                    <div class="cart-item">
+                        <strong>{{ item.product.name }}</strong> — Quantity: {{ item.quantity }} — Price: ${{ item.product.price }}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-message">Your cart is empty.</p>
+            {% endif %}
+        </div>
+
+        <div style="margin-top: 40px;">
+            <h3 class="section-title">Purchase History</h3>
+            {% if purchase_history %}
+                {% for order in purchase_history %}
+                    <div class="purchase-history-item">
+                        <strong>Order #{{ order.id }}</strong> — Date: {{ order.date_ordered|date:"M d, Y" }} — Total: ${{ order.total }}
+                    </div>
+                {% endfor %}
+            {% else %}
+                <p class="empty-message">No purchase history available.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
 </body>
 </html>
