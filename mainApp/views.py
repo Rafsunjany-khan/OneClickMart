@@ -1,13 +1,14 @@
 from django.contrib.auth.models import User
 from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
+from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
-from .models import UserProfile
+from .models import UserProfile, Slider, Product
 
 def home(request):
-    return render(request, 'base.html')
-
+    sliders = Slider.objects.all()
+    products = Product.objects.filter(available=True).prefetch_related('images')
+    return render(request, 'base.html', {'sliders': sliders, 'products': products})
 
 def signup(request):
     if request.method == 'POST':
@@ -67,6 +68,11 @@ def profile(request):
 
 
 # Remove the redundant profile function that checks the session
+
+def user_logout(request):
+    logout(request)
+    return redirect('home')
+
 
 def cart_view(request):
     cart = request.session.get('cart', {})

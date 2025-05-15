@@ -3,9 +3,11 @@ from django.contrib.auth.backends import BaseBackend
 
 class EmailBackend(BaseBackend):
     def authenticate(self, request, username=None, password=None, **kwargs):
+        if username is None or password is None:
+            return None
         try:
-            user = User.objects.get(email=username)  # Use email for authentication
-            if user.check_password(password):
+            user = User.objects.get(email=username)
+            if user.check_password(password) and user.is_active:
                 return user
         except User.DoesNotExist:
             return None

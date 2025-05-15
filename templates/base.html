@@ -116,36 +116,18 @@
 <!-- Exclusive Products Slider -->
 <div id="exclusiveCarousel" class="carousel slide" data-bs-ride="carousel">
   <div class="carousel-inner">
-    <div class="carousel-item active">
-      <div class="position-relative">
-        <img src="{% static 'image/banner/banner.jpg' %}" class="d-block w-100" alt="Exclusive Product 1">
-        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
-          <h2>Exclusive Product</h2>
-          <p>Get the latest product now!</p>
-          <button class="btn btn-primary">Add to Cart</button>
+    {% for slide in sliders %}
+      <div class="carousel-item {% if forloop.first %}active{% endif %}">
+        <div class="position-relative">
+          <img src="{{ slide.image.url }}" class="d-block w-100" alt="{{ slide.title }}">
+          <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
+            <h2>{{ slide.title }}</h2>
+            <p>{{ slide.subtitle }}</p>
+            <a href="{{ slide.link }}" class="btn btn-primary">Add to Cart</a>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="carousel-item">
-      <div class="position-relative">
-        <img src="{% static 'image/banner/banner1.jpg' %}" class="d-block w-100" alt="Exclusive Product 2">
-        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
-          <h2>Exclusive Product 2</h2>
-          <p>This is another great product!</p>
-          <button class="btn btn-primary">Add to Cart</button>
-        </div>
-      </div>
-    </div>
-    <div class="carousel-item">
-      <div class="position-relative">
-        <img src="{% static 'image/banner/banner4.jpg' %}" class="d-block w-100" alt="Exclusive Product 3">
-        <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
-          <h2>Exclusive Product 3</h2>
-          <p>This is another great product!</p>
-          <button class="btn btn-primary">Add to Cart</button>
-        </div>
-      </div>
-    </div>
+    {% endfor %}
   </div>
   <button class="carousel-control-prev" type="button" data-bs-target="#exclusiveCarousel" data-bs-slide="prev">
     <span class="carousel-control-prev-icon" aria-hidden="true"></span>
@@ -160,51 +142,43 @@
 <!-- Product Card Section -->
 <div class="container my-5">
   <div class="row g-4">
-    <div class="col-md-4">
-      <div class="card product-card h-100">
-        <img src="{% static 'image/Products/camera.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
-        <div class="card-body">
-          <h5 class="card-title">Canon Camera</h5>
-          <p class="product-price">$25</p>
-          <button class="btn btn-primary"
-                  onclick="addToCart('1', 'Canon Camera', 25, '{% static 'image/Products/camera.jpg' %}')">
-            Add To Cart
-          </button>
+    {% for product in products %}
+      <div class="col-md-4">
+        <div class="card product-card h-100">
+          {% with product.images.first as image %}
+            {% if image %}
+              <img src="{{ image.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+            {% else %}
+              <img src="{% static 'image/no-image.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+            {% endif %}
+          {% endwith %}
+          <div class="card-body">
+            <h5 class="card-title">{{ product.name }}</h5>
+            <p class="product-price">${{ product.price }}</p>
+            {% with product.images.first as image %}
+              {% if image %}
+                <button class="btn btn-primary"
+                  onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '{{ image.image.url }}')">
+                  Add To Cart
+                </button>
+              {% else %}
+                <button class="btn btn-primary"
+                  onclick="addToCart('{{ product.id }}', '{{ product.name }}', {{ product.price }}, '')">
+                  Add To Cart
+                </button>
+              {% endif %}
+            {% endwith %}
+          </div>
         </div>
       </div>
-    </div>
-
-    <!-- Product 2 -->
-    <div class="col-md-4">
-      <div class="card product-card h-100">
-        <img src="{% static 'image/Products/JVC-Dymanic-Sound.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
-        <div class="card-body">
-          <h5 class="card-title">JVC Dynamic Sound</h5>
-          <p class="product-price">$45</p>
-          <button class="btn btn-primary"
-                  onclick="addToCart('2', 'JVC Dynamic Sound', 45, '{% static 'image/Products/JVC-Dymanic-Sound.jpg' %}')">
-            Add To Cart
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Product 3 -->
-    <div class="col-md-4">
-      <div class="card product-card h-100">
-        <img src="{% static 'image/Products/Iphone16plus.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
-        <div class="card-body">
-          <h5 class="card-title">iPhone 16 Plus</h5>
-          <p class="product-price">$55</p>
-          <button class="btn btn-primary"
-                  onclick="addToCart('3', 'iPhone 16 Plus', 55, '{% static 'image/Products/Iphone16plus.jpg' %}')">
-            Add To Cart
-          </button>
-        </div>
-      </div>
-    </div>
+    {% endfor %}
   </div>
 </div>
+
+
+
+
+
 
 <!-- Footer Section -->
 <footer class="footer text-center mt-5 py-4 bg-dark text-white">

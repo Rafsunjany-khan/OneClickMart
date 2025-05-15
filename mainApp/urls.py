@@ -6,7 +6,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('', views.home, name='home'),
     path('signup/', views.signup, name='signup'),
-    path('login/', views.custom_login, name='login'),  # remove leading slash
+    path('login/', views.custom_login, name='login'),
+    path('logout/', views.user_logout, name='logout'),
     path('profile/', views.profile, name='profile'),
     path('cart/', views.cart_view, name='cart'),
     path('update-cart/', views.update_cart, name='update_cart'),
