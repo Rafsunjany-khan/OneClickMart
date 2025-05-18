@@ -7,6 +7,23 @@
   <title>Your Cart</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
+     .navbar-brand, .nav-link {
+            color: #fff !important;
+        }
+
+        .nav-link:hover {
+            color: #f0a500 !important;
+        }
+
+        .logout {
+            margin-left: 20px;
+            background-color: #dc3545;
+            padding: 8px 14px;
+            border-radius: 4px;
+            color: white !important;
+            font-weight: bold;
+        }
+
     .cart-img {
       width: 80px;
       height: 80px;
@@ -18,6 +35,37 @@
   </style>
 </head>
 <body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid px-4">
+        <a class="navbar-brand" href="{% url 'home' %}">
+            <img src="{% static 'assets/images/logo/onelclick.PNG' %}" alt="Logo" style="width: 160px; height: 50px;">
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarNav" aria-controls="navbarNav"
+                aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+            <ul class="navbar-nav align-items-center">
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'home' %}">HOME</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="#">PRODUCTS</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="{% url 'cart' %}">CART</a>
+                </li>
+                <li class="nav-item">
+                    <a class="logout nav-link" href="{% url 'logout' %}">Logout</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+</nav>
+
 <div class="container my-5">
 
   <!-- Heading -->

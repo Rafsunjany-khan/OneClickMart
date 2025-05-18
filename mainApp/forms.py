@@ -26,7 +26,17 @@ class SignupForm(forms.ModelForm):
 
         return cleaned_data
 
-class ProfileForm(forms.ModelForm):
+
+class UserProfileForm(forms.ModelForm):
     class Meta:
         model = UserProfile
         fields = ['profile_image', 'address_line_1', 'address_line_2', 'phone_number', 'city', 'postcode']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Add Bootstrap classes to form fields
+        for field_name, field in self.fields.items():
+            if field.widget.__class__.__name__ == 'ClearableFileInput':
+                field.widget.attrs.update({'class': 'form-control-file'})
+            else:
+                field.widget.attrs.update({'class': 'form-control'})

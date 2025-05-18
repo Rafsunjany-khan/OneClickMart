@@ -1,0 +1,18 @@
+<form method="POST" action="{% url 'process_payment' %}">
+    {% csrf_token %}
+
+    <div class="mb-3">
+        <label for="payment_method" class="form-label fw-semibold">Choose Payment Method:</label>
+        <select name="payment_method" id="payment_method" class="form-select" required>
+            <option value="Cash">Cash</option>
+            <option value="SSLCommerz">SSLCommerz</option>
+        </select>
+    </div>
+
+    <button type="submit" class="btn btn-success px-4 shadow-sm">
+        <i class="bi bi-credit-card-2-front-fill me-1"></i> Pay Now
+    </button>
+    <a href="{% url 'cart' %}" class="btn btn-outline-secondary px-4 shadow-sm">
+        <i class="bi bi-arrow-left me-1"></i> Back to Cart
+    </a>
+</form>

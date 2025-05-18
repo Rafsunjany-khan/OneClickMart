@@ -43,7 +43,11 @@ class Product(TimeStampedModel):
 
     @property
     def discount_price(self):
-        return self.price * (1 - self.discount_percentage / 100)
+        if self.discount_percentage <= 0 or self.discount_percentage > 100:
+            return self.price
+        discount_amount = self.price * (self.discount_percentage / 100)
+        discounted_price = self.price - discount_amount
+        return max(discounted_price, 0)
 
     @property
     def savings(self):
@@ -104,6 +108,7 @@ class CartItem(models.Model):
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
+    is_paid = models.BooleanField(default=False)  # ✅ Add this field
 
     class Meta:
         unique_together = ('user', 'product')
@@ -125,20 +130,31 @@ class Order(models.Model):
     total_amount = models.DecimalField(max_digits=12, decimal_places=2)
     ordered_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
-    shipping_address = models.CharField(max_length=255, blank=True)  # optional: copy from profile or user input
+    shipping_address = models.CharField(max_length=255, blank=True)
+    payment_method = models.CharField(max_length=20, default='Cash')  # ✅ Add this line
+
 
     def __str__(self):
         return f"Order #{self.id} by {self.user.username} - {self.status}"
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
-    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='items'  # Enables access via order.items.all()
+    )
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.SET_NULL,
+        null=True
+    )
     quantity = models.PositiveIntegerField()
     price = models.DecimalField(max_digits=10, decimal_places=2)  # price at purchase time
 
     def __str__(self):
-        return f"{self.quantity} x {self.product.name if self.product else 'Deleted Product'}"
+        product_name = self.product.name if self.product else 'Deleted Product'
+        return f"{self.quantity} x {product_name}"
 
 
 class Payment(models.Model):

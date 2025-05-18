@@ -5,6 +5,10 @@ class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
 
+class OrderItemInline(admin.TabularInline):  # 🔁 Move this ABOVE OrderAdmin
+    model = OrderItem
+    extra = 0
+
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     list_display = ('name', 'price', 'discount_percentage', 'stock', 'available', 'rating')
@@ -28,21 +32,17 @@ class ReviewAdmin(admin.ModelAdmin):
 class SliderAdmin(admin.ModelAdmin):
     list_display = ('title', 'subtitle', 'created_at')
 
-class CartItemInline(admin.TabularInline):
-    model = CartItem
-    extra = 1
-
-class OrderItemInline(admin.TabularInline):
-    model = OrderItem
-    extra = 1
-
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'get_total_price', 'status', 'ordered_at')
-    inlines = [OrderItemInline]
+    inlines = [OrderItemInline]  # ✅ Now OrderItemInline is defined above
     list_filter = ('status', 'ordered_at')
     search_fields = ('user__username',)
 
     def get_total_price(self, obj):
-        return sum(item.product.get_discounted_price() * item.quantity for item in obj.orderitem_set.all())
+        total = 0
+        for item in obj.items.all():
+            price = item.product.get_discounted_price() if item.product else 0
+            total += price * item.quantity
+        return total
     get_total_price.short_description = 'Total Price'
