@@ -4,7 +4,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
 from django.contrib import messages
 from .models import *
-from .forms import UserProfileForm
+from .forms import SignupForm, UserProfileForm
 from decimal import Decimal
 
 # Home Page
@@ -21,21 +21,19 @@ def product_detail(request, id):
 # User Signup
 def signup(request):
     if request.method == 'POST':
-        fname = request.POST['first_name']
-        lname = request.POST['last_name']
-        email = request.POST['email']
-        password = request.POST['password']
-        confirm = request.POST['confirm_password']
-
-        if password == confirm:
-            user = User.objects.create_user(username=email, email=email, password=password)
-            user.first_name = fname
-            user.last_name = lname
-            user.save()
+        form = SignupForm(request.POST)
+        if form.is_valid():
+            user = User.objects.create_user(
+                username=form.cleaned_data['email'],
+                email=form.cleaned_data['email'],
+                password=form.cleaned_data['password'],
+                first_name=form.cleaned_data['first_name'],
+                last_name=form.cleaned_data['last_name'],
+            )
             return redirect('login')
-    return render(request, 'signup.html')
-
-# Login View
+    else:
+        form = SignupForm()
+    return render(request, 'signup.html', {'form': form})# Login View
 def custom_login(request):
     if request.method == 'POST':
         email = request.POST.get('email')
