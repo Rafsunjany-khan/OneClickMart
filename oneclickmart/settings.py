@@ -130,3 +130,17 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# -------- SSLCommerz Payment Gateway Settings --------
+SSLCOMMERZ_STORE_ID = 'onecl682b88619673e'
+SSLCOMMERZ_STORE_PASSWORD = 'onecl682b88619673e@ssl'
+SSLCOMMERZ_STORE_NAME = 'testoneclqq4w'
+
+SSLCOMMERZ_SANDBOX = True  # Set to False in production
+
+SSLCOMMERZ_API_SESSION_URL = 'https://sandbox.sslcommerz.com/gwprocess/v3/api.php'
+SSLCOMMERZ_VALIDATION_API_WSDL = 'https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php?wsdl'
+SSLCOMMERZ_VALIDATION_API = 'https://sandbox.sslcommerz.com/validator/api/validationserverAPI.php'
+
+SSLCOMMERZ_MERCHANT_PANEL_URL = 'https://sandbox.sslcommerz.com/manage/'
+SSLCOMMERZ_REGISTERED_URL = 'www.oneclickmart.com'

@@ -1,4 +1,6 @@
 from django.contrib.auth.models import User
+import requests
+from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth import authenticate, login, logout
@@ -7,6 +9,25 @@ from .models import *
 from .forms import SignupForm, UserProfileForm
 from decimal import Decimal
 
+from django.contrib.auth.forms import PasswordChangeForm
+from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth.views import PasswordChangeView
+from django.urls import reverse_lazy
+
+from django.http import HttpResponse
+
+def payment_success(request):
+    return HttpResponse("Payment successful!")
+
+def payment_fail(request):
+    return HttpResponse("Payment failed!")
+
+def payment_cancel(request):
+    return HttpResponse("Payment cancelled.")
+
+class CustomPasswordChangeView(PasswordChangeView):
+    template_name = 'accounts/change_password.html'  # make sure this template exists
+    success_url = reverse_lazy('profile')  # redirect after success
 # Home Page
 def home(request):
     sliders = Slider.objects.all()
@@ -111,6 +132,21 @@ def update_profile(request):
 
     return render(request, 'profile_update.html', {'profile_form': profile_form})
 
+@login_required
+def change_password(request):
+    if request.method == 'POST':
+        form = PasswordChangeForm(user=request.user, data=request.POST)
+        if form.is_valid():
+            user = form.save()
+            update_session_auth_hash(request, user)  # prevent logout
+            messages.success(request, 'Password changed successfully!')
+            return redirect('login')  # or redirect to profile
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = PasswordChangeForm(user=request.user)
+
+    return render(request, 'change_password.html', {'form': form})
 # Add to Cart
 @login_required
 def add_to_cart(request, product_id):
@@ -217,9 +253,25 @@ def place_order(request):
 
 # Process Payment View (Cash & SSLCommerz)
 @login_required
+
+# Order Success Page
+def order_success(request):
+    return render(request, 'order_success.html')
+
+import time
+# Process Payment (Cash & SSLCommerz)
+@login_required
 def process_payment(request):
     if request.method == 'POST':
         payment_method = request.POST.get('payment_method')
+        total_amount = request.POST.get('total_amount')
+
+        # Validate total_amount
+        try:
+            total = Decimal(total_amount)
+        except (TypeError, ValueError):
+            messages.error(request, "Invalid total amount.")
+            return redirect('make_payment')
 
         if payment_method == 'Cash':
             cart_items = CartItem.objects.filter(user=request.user).select_related('product')
@@ -228,19 +280,17 @@ def process_payment(request):
                 messages.warning(request, "Your cart is empty.")
                 return redirect('cart')
 
-            total = Decimal('0.00')
             order = Order.objects.create(
                 user=request.user,
-                total_amount=0,
+                total_amount=total,
                 payment_method='Cash',
-                shipping_address="test address",
+                shipping_address="test address",  # Replace with real address logic
                 status='Pending'
             )
 
             for item in cart_items:
                 price = item.product.get_discounted_price()
                 subtotal = price * item.quantity
-                total += subtotal
 
                 OrderItem.objects.create(
                     order=order,
@@ -249,19 +299,92 @@ def process_payment(request):
                     price=price
                 )
 
-            order.total_amount = total
-            order.save()
-
             cart_items.delete()
             messages.success(request, "Payment processed successfully! Your order has been placed.")
             return redirect('order_success')
 
         elif payment_method == 'SSLCommerz':
-            messages.warning(request, "SSLCommerz payment method is under development.")
+            # Prepare SSLCommerz payment data
+            payment_data = {
+                'store_id': settings.SSLCOMMERZ_STORE_ID,
+                'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
+                'total_amount': str(total),  # Must be string
+                'currency': 'BDT',
+                'tran_id': f'TRAN_{request.user.id}_{order.id if "order" in locals() else "NEW"}',  # Unique txn id, improve as needed
+                'success_url': request.build_absolute_uri('/payment-success/'),
+                'fail_url': request.build_absolute_uri('/payment-fail/'),
+                'cancel_url': request.build_absolute_uri('/payment-cancel/'),
+                'emi_option': 0,
+                'cus_name': request.user.get_full_name() or request.user.username,
+                'cus_email': request.user.email,
+                'cus_phone': '',  # Add phone if available
+                'cus_add1': 'Customer Address',  # You can get real address from user profile
+                'cus_city': 'City',
+                'cus_postcode': '0000',
+                'cus_country': 'Bangladesh',
+                'shipping_method': 'NO',
+                'product_name': 'Order Payment',
+                'product_category': 'General',
+                'product_profile': 'general',
+            }
+
+            # Call SSLCommerz API
+            try:
+                response = requests.post(settings.SSLCOMMERZ_API_SESSION_URL, data=payment_data)
+                response_data = response.json()
+            except Exception as e:
+                messages.error(request, f"Failed to initiate payment: {str(e)}")
+                return redirect('make_payment')
+
+            if response_data.get('status') == 'SUCCESS':
+                # Redirect user to SSLCommerz payment page
+                return redirect(response_data['GatewayPageURL'])
+            else:
+                messages.error(request, "Payment initiation failed. Please try again.")
+                return redirect('make_payment')
+
+        else:
+            messages.error(request, "Invalid payment method selected.")
             return redirect('make_payment')
 
     return redirect('cart')
+# Initiate SSLCommerz Payment
+@login_required
+def initiate_payment(request):
+    if request.method == "POST":
+        payment_data = {
+            'store_id': settings.SSLCOMMERZ_STORE_ID,
+            'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
+            'total_amount': 100,  # Change as needed
+            'currency': 'BDT',
+            'tran_id': 'TEST12345',  # Generate unique ID in production
+            'success_url': 'http://127.0.0.1:8000/payment-success/',
+            'fail_url': 'http://127.0.0.1:8000/payment-fail/',
+            'cancel_url': 'http://127.0.0.1:8000/payment-cancel/',
+            'emi_option': 0,
+            'cus_name': 'Test User',
+            'cus_email': 'test@example.com',
+            'cus_phone': '01700000000',
+            'cus_add1': 'Dhaka',
+            'cus_city': 'Dhaka',
+            'cus_postcode': '1200',
+            'cus_country': 'Bangladesh',
+            'shipping_method': 'NO',
+            'product_name': 'Test Product',
+            'product_category': 'Electronic',
+            'product_profile': 'general',
+        }
 
-# Order Success Page
+        response = requests.post(settings.SSLCOMMERZ_API_SESSION_URL, data=payment_data)
+        response_data = response.json()
+
+        if response_data.get('status') == 'SUCCESS':
+            return redirect(response_data['GatewayPageURL'])
+        else:
+            messages.error(request, "Payment initiation failed.")
+            return redirect('make_payment')  # Your payment form view
+    else:
+        return redirect('make_payment')
+
 def order_success(request):
     return render(request, 'order_success.html')
