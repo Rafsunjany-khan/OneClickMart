@@ -2,6 +2,15 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.db.models import Avg, Count
 from django.utils.text import slugify
+from datetime import timedelta
+from django.utils import timezone
+
+
+# Reusable payment choices
+PAYMENT_METHOD_CHOICES = [
+    ('Cash', 'Cash'),
+    ('SSLCommerz', 'SSLCommerz'),
+]
 
 class UserProfile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -17,7 +26,6 @@ class UserProfile(models.Model):
 
 
 class TimeStampedModel(models.Model):
-    """Reusable abstract model for created_at and updated_at"""
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -38,7 +46,8 @@ class Product(TimeStampedModel):
     rating = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, null=True, blank=True)
 
     def save(self, *args, **kwargs):
-        self.slug = slugify(self.name)
+        if not self.slug:
+            self.slug = slugify(self.name)
         super().save(*args, **kwargs)
 
     @property
@@ -56,10 +65,16 @@ class Product(TimeStampedModel):
     def get_discounted_price(self):
         return self.discount_price if self.discount_percentage > 0 else self.price
 
+    @property
+    def is_new_arrival(self):
+        # Consider products added within the last 7 days as new arrivals
+        return self.created_at >= timezone.now() - timedelta(days=5)
+
     def averageReview(self):
         reviews = Review.objects.filter(product=self, status=True).aggregate(average=Avg("rating"))
         avg = float(reviews["average"]) if reviews["average"] is not None else 0
         self.rating = avg
+        self.save(update_fields=['rating'])  # Save the new rating to DB
         return avg
 
     def count_review(self):
@@ -101,14 +116,13 @@ class Slider(TimeStampedModel):
         return self.title
 
 
-# ----- New models for Cart, Order, and Payment -----
-
 class CartItem(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='cart_items')
     product = models.ForeignKey(Product, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(default=1)
     added_at = models.DateTimeField(auto_now_add=True)
-    is_paid = models.BooleanField(default=False)  # ✅ Add this field
+    is_paid = models.BooleanField(default=False)
+    price_at_added_time = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
 
     class Meta:
         unique_together = ('user', 'product')
@@ -131,26 +145,17 @@ class Order(models.Model):
     ordered_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     shipping_address = models.CharField(max_length=255, blank=True)
-    payment_method = models.CharField(max_length=20, default='Cash')  # ✅ Add this line
-
+    payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='Cash')
 
     def __str__(self):
         return f"Order #{self.id} by {self.user.username} - {self.status}"
 
 
 class OrderItem(models.Model):
-    order = models.ForeignKey(
-        Order,
-        on_delete=models.CASCADE,
-        related_name='items'  # Enables access via order.items.all()
-    )
-    product = models.ForeignKey(
-        Product,
-        on_delete=models.SET_NULL,
-        null=True
-    )
+    order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
+    product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
     quantity = models.PositiveIntegerField()
-    price = models.DecimalField(max_digits=10, decimal_places=2)  # price at purchase time
+    price = models.DecimalField(max_digits=10, decimal_places=2)  # Price at time of order
 
     def __str__(self):
         product_name = self.product.name if self.product else 'Deleted Product'
@@ -158,12 +163,26 @@ class OrderItem(models.Model):
 
 
 class Payment(models.Model):
+    STATUS_CHOICES = [
+        ('Pending', 'Pending'),
+        ('Completed', 'Completed'),
+        ('Failed', 'Failed'),
+    ]
+
     order = models.OneToOneField(Order, on_delete=models.CASCADE, related_name='payment')
     transaction_id = models.CharField(max_length=255)
-    payment_method = models.CharField(max_length=100, default='SSLCommerz')
+    payment_method = models.CharField(max_length=100, choices=PAYMENT_METHOD_CHOICES, default='SSLCommerz')
     amount = models.DecimalField(max_digits=12, decimal_places=2)
-    status = models.CharField(max_length=20)  # e.g. Success, Failed
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     paid_at = models.DateTimeField(auto_now_add=True)
+
+    def save(self, *args, **kwargs):
+        # Automatically mark SSLCommerz payments as Completed if not failed
+        if self.payment_method == 'SSLCommerz' and self.status != 'Failed':
+            self.status = 'Completed'
+            self.order.status = 'Completed'  # Also update order status
+            self.order.save(update_fields=['status'])
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return f"Payment for Order #{self.order.id} - {self.status}"

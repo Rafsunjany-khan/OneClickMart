@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserProfile, Product, ProductImage, Review, Slider, CartItem, Order, OrderItem
+from .models import UserProfile, Product, ProductImage, Review, Slider, CartItem, Order, OrderItem, Payment
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -46,3 +46,19 @@ class OrderAdmin(admin.ModelAdmin):
             total += price * item.quantity
         return total
     get_total_price.short_description = 'Total Price'
+
+@admin.action(description='Mark selected cash payments as Completed')
+def approve_cash_payments(modeladmin, request, queryset):
+    for payment in queryset:
+        if payment.payment_method == 'Cash' and payment.status == 'Pending':
+            payment.status = 'Completed'
+            payment.order.status = 'Completed'
+            payment.order.save(update_fields=['status'])
+            payment.save(update_fields=['status'])
+
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ['order', 'payment_method', 'amount', 'status', 'paid_at']
+    list_filter = ['payment_method', 'status']
+    actions = [approve_cash_payments]
+
+admin.site.register(Payment, PaymentAdmin)

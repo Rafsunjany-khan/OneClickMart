@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% load static %}
+{% block content %}
+<div class="container my-5">
+  <div class="row g-4">
+    {% for product in products %}
+      <div class="col-md-4">
+        <div class="card product-card h-100 position-relative">
+          {% with product.images.first as image %}
+            {% if image %}
+              <img src="{{ image.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+            {% else %}
+              <img src="{% static 'image/no-image.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+            {% endif %}
+          {% endwith %}
+
+          {% if product.is_new_arrival %}
+            <span class="badge badge-new position-absolute m-2">New Arrival</span>
+          {% endif %}
+
+          <div class="card-body">
+            <h5 class="card-title">{{ product.name }}</h5>
+            {% if product.subtitle %}
+              <p class="text-muted small mb-2">{{ product.subtitle }}</p>
+            {% endif %}
+            {% if product.discount_percentage > 0 %}
+              <p class="product-price">
+                <span class="text-muted text-decoration-line-through">${{ product.price|floatformat:2 }}</span>
+                <span class="text-success fw-bold ms-2">${{ product.discount_price|floatformat:2 }}</span>
+              </p>
+            {% else %}
+              <p class="product-price fw-bold">${{ product.price|floatformat:2 }}</p>
+            {% endif %}
+            <form action="{% url 'add_to_cart' product.id %}" method="post" class="d-inline">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary btn-sm">Add To Cart</button>
+            </form>
+            <a href="{% url 'product_detail' product.id %}" class="btn btn-outline-secondary btn-sm ms-2">See Details</a>
+          </div>
+        </div>
+      </div>
+    {% empty %}
+      <p>No products found.</p>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

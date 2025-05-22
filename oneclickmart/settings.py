@@ -144,3 +144,18 @@ SSLCOMMERZ_VALIDATION_API = 'https://sandbox.sslcommerz.com/validator/api/valida
 
 SSLCOMMERZ_MERCHANT_PANEL_URL = 'https://sandbox.sslcommerz.com/manage/'
 SSLCOMMERZ_REGISTERED_URL = 'www.oneclickmart.com'
+
+
+# Add this at the bottom of your settings.py
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
+# Email Configuration (Add these in settings.py)
+
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = 'smtp.gmail.com'
+EMAIL_PORT = 587
+EMAIL_USE_TLS = True
+EMAIL_HOST_USER = 'rafsunjanykhan20@gmail.com'
+EMAIL_HOST_PASSWORD = 'jtze mklx fdos rlfm'
+DEFAULT_FROM_EMAIL = EMAIL_HOST_USER

@@ -3,19 +3,25 @@ import requests
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate, login, logout
+from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib import messages
 from .models import *
 from .forms import SignupForm, UserProfileForm
 from decimal import Decimal
-
 from django.contrib.auth.forms import PasswordChangeForm
-from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.views import PasswordChangeView
 from django.urls import reverse_lazy
+from django.http import HttpResponse, JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
-from django.http import HttpResponse
+from django.contrib.sites.shortcuts import get_current_site
+from django.template.loader import render_to_string
+from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
+from django.utils.encoding import force_bytes, force_str
+from django.contrib.auth.tokens import default_token_generator
+from django.core.mail import EmailMessage
 
+# Payment Result Views
 def payment_success(request):
     return HttpResponse("Payment successful!")
 
@@ -25,14 +31,20 @@ def payment_fail(request):
 def payment_cancel(request):
     return HttpResponse("Payment cancelled.")
 
+# Password Change View
 class CustomPasswordChangeView(PasswordChangeView):
-    template_name = 'accounts/change_password.html'  # make sure this template exists
-    success_url = reverse_lazy('profile')  # redirect after success
+    template_name = 'accounts/change_password.html'
+    success_url = reverse_lazy('profile')
+
 # Home Page
 def home(request):
     sliders = Slider.objects.all()
-    products = Product.objects.filter(available=True).prefetch_related('images')
+    products = Product.objects.filter(available=True).order_by('-created_at').prefetch_related('images')
     return render(request, 'base.html', {'sliders': sliders, 'products': products})
+
+def product_list(request):
+    products = Product.objects.filter(available=True).order_by('-created_at').prefetch_related('images')
+    return render(request, 'products.html', {'products': products})
 
 # Product Detail Page
 def product_detail(request, id):
@@ -50,68 +62,78 @@ def signup(request):
                 password=form.cleaned_data['password'],
                 first_name=form.cleaned_data['first_name'],
                 last_name=form.cleaned_data['last_name'],
+                is_active=False  # User inactive until email verified
             )
-            return redirect('login')
+            user.save()
+
+            # Instead of getting current_site from request, set domain manually for local testing
+            domain = 'localhost:8000'  # Your local server and port
+
+            mail_subject = 'Activate your account'
+            message = render_to_string('acc_activate_email.html', {
+                'user': user,
+                'domain': domain,
+                'uid': urlsafe_base64_encode(force_bytes(user.pk)),
+                'token': default_token_generator.make_token(user),
+            })
+            to_email = form.cleaned_data.get('email')
+            email = EmailMessage(mail_subject, message, to=[to_email])
+            email.send()
+
+            return render(request, 'activation_sent.html')
     else:
         form = SignupForm()
-    return render(request, 'signup.html', {'form': form})# Login View
+    return render(request, 'signup.html', {'form': form})
+# Email Activation code
+def activate(request, uidb64, token):
+    try:
+        # Decode the user id from the base64 string
+        uid = force_str(urlsafe_base64_decode(uidb64))
+        user = User.objects.get(pk=uid)
+    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
+        user = None
+
+    if user is not None and default_token_generator.check_token(user, token):
+        user.is_active = True  # Activate the user
+        user.save()
+        login(request, user)  # Automatically login after activation
+        return redirect('profile')  # Redirect to profile or homepage
+    else:
+        return render(request, 'activation_invalid.html')# Login View
+
 def custom_login(request):
     if request.method == 'POST':
         email = request.POST.get('email')
         password = request.POST.get('password')
-
         user = authenticate(request, username=email, password=password)
-        if user is not None:
+        if user:
             login(request, user)
             return redirect('profile')
         else:
             messages.error(request, "Invalid email or password.")
-            return redirect('home')
-    return redirect('home')
-
+            return redirect('login')  # redirect back to login on error
+    return render(request, 'login.html')  # Corrected path to your template
 # Logout View
 def user_logout(request):
     logout(request)
     return redirect('home')
 
 # Profile View
-
 @login_required
 def profile(request):
     user = request.user
     try:
         profile = user.userprofile
     except UserProfile.DoesNotExist:
-        profile = None  # or handle missing profile gracefully
+        profile = None
 
     purchase_history = Order.objects.filter(user=user).order_by('-ordered_at')
     cart_items = CartItem.objects.filter(user=user)
 
-    # Debug print:
-    for order in purchase_history:
-        print(f"Order ID: {order.id}, Date Ordered: {order.ordered_at}, Total: {order.total_amount}")
-
     context = {
         'profile': profile,
         'cart_items': cart_items,
         'purchase_history': purchase_history,
-        # other context data
-    }
-    return render(request, 'profile.html', context)
-
-@login_required
-def profile_view(request):
-    user = request.user
-    purchase_history = Order.objects.filter(user=user).order_by('-date_ordered')
-
-    cart_items = CartItem.objects.filter(user=user)  # example for cart items
-
-    profile = user.profile  # or however you get user profile
-
-    context = {
-        'purchase_history': purchase_history,
-        'cart_items': cart_items,
-        'profile': profile,
     }
     return render(request, 'profile.html', context)
 
@@ -132,21 +154,23 @@ def update_profile(request):
 
     return render(request, 'profile_update.html', {'profile_form': profile_form})
 
+# Change Password View
 @login_required
 def change_password(request):
     if request.method == 'POST':
         form = PasswordChangeForm(user=request.user, data=request.POST)
         if form.is_valid():
             user = form.save()
-            update_session_auth_hash(request, user)  # prevent logout
+            update_session_auth_hash(request, user)
             messages.success(request, 'Password changed successfully!')
-            return redirect('login')  # or redirect to profile
+            return redirect('profile')
         else:
             messages.error(request, 'Please correct the errors below.')
     else:
         form = PasswordChangeForm(user=request.user)
 
     return render(request, 'change_password.html', {'form': form})
+
 # Add to Cart
 @login_required
 def add_to_cart(request, product_id):
@@ -167,9 +191,20 @@ def add_to_cart(request, product_id):
 def cart_view(request):
     cart_items = CartItem.objects.filter(user=request.user).select_related('product')
     total = sum(item.product.price * item.quantity for item in cart_items)
-    return render(request, 'cart.html', {
+    return render(request, 'cart.html', {'cart_items': cart_items, 'total': total})
+
+@login_required
+def checkout_view(request):
+    cart_items = CartItem.objects.filter(user=request.user)
+    if not cart_items.exists():
+        messages.warning(request, "Your cart is empty.")
+        return redirect('cart')
+
+    total_price = sum(item.product.price * item.quantity for item in cart_items)
+
+    return render(request, 'checkout.html', {
         'cart_items': cart_items,
-        'total': total
+        'total_price': total_price,
     })
 
 # Update Cart
@@ -210,10 +245,7 @@ def make_payment(request):
 
     total = sum(item.product.discount_price * item.quantity for item in cart_items)
 
-    return render(request, 'payment.html', {
-        'cart_items': cart_items,
-        'total_amount': total
-    })
+    return render(request, 'payment.html', {'cart_items': cart_items, 'total_amount': total})
 
 # Place Order
 @login_required
@@ -227,7 +259,7 @@ def place_order(request):
 
     order = Order.objects.create(
         user=user,
-        total_amount=0,  # Will be updated after calculation
+        total_amount=0,
         shipping_address="test address",
         payment_method="Cash"
     )
@@ -247,18 +279,54 @@ def place_order(request):
 
     order.total_amount = total_amount
     order.save()
-
     cart_items.delete()
     return redirect('order_success')
 
-# Process Payment View (Cash & SSLCommerz)
 @login_required
+def place_order_view(request):
+    if request.method == "POST":
+        payment_method = request.POST.get('payment_method')  # 'Cash' or 'SSLCommerz'
 
-# Order Success Page
+        if payment_method != "Cash":
+            messages.error(request, "Only Cash payment is supported right now.")
+            return redirect('checkout')
+
+        cart_items = CartItem.objects.filter(user=request.user)
+        if not cart_items.exists():
+            messages.warning(request, "Your cart is empty.")
+            return redirect('cart')
+
+        # Create Order
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=sum(item.product.price * item.quantity for item in cart_items),
+            payment_method="Cash",
+            status="Pending",
+            created_at=timezone.now()
+        )
+
+        # Create Order Items
+        for item in cart_items:
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                quantity=item.quantity,
+                price=item.product.price
+            )
+
+        # Clear user's cart
+        cart_items.delete()
+
+        messages.success(request, "Order placed successfully with Cash payment.")
+        return redirect('order_success')
+
+    return redirect('checkout')
+
+# Order Success
+@login_required
 def order_success(request):
     return render(request, 'order_success.html')
 
-import time
 # Process Payment (Cash & SSLCommerz)
 @login_required
 def process_payment(request):
@@ -266,59 +334,54 @@ def process_payment(request):
         payment_method = request.POST.get('payment_method')
         total_amount = request.POST.get('total_amount')
 
-        # Validate total_amount
         try:
             total = Decimal(total_amount)
         except (TypeError, ValueError):
             messages.error(request, "Invalid total amount.")
             return redirect('make_payment')
 
-        if payment_method == 'Cash':
-            cart_items = CartItem.objects.filter(user=request.user).select_related('product')
+        cart_items = CartItem.objects.filter(user=request.user).select_related('product')
+        if not cart_items.exists():
+            messages.warning(request, "Your cart is empty.")
+            return redirect('cart')
 
-            if not cart_items.exists():
-                messages.warning(request, "Your cart is empty.")
-                return redirect('cart')
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=total,
+            payment_method=payment_method,
+            shipping_address="test address",
+            status='Pending'
+        )
 
-            order = Order.objects.create(
-                user=request.user,
-                total_amount=total,
-                payment_method='Cash',
-                shipping_address="test address",  # Replace with real address logic
-                status='Pending'
+        for item in cart_items:
+            price = item.product.get_discounted_price()
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                quantity=item.quantity,
+                price=price
             )
 
-            for item in cart_items:
-                price = item.product.get_discounted_price()
-                subtotal = price * item.quantity
-
-                OrderItem.objects.create(
-                    order=order,
-                    product=item.product,
-                    quantity=item.quantity,
-                    price=price
-                )
-
+        if payment_method == 'Cash':
             cart_items.delete()
             messages.success(request, "Payment processed successfully! Your order has been placed.")
             return redirect('order_success')
 
         elif payment_method == 'SSLCommerz':
-            # Prepare SSLCommerz payment data
             payment_data = {
                 'store_id': settings.SSLCOMMERZ_STORE_ID,
                 'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
-                'total_amount': str(total),  # Must be string
+                'total_amount': str(total),
                 'currency': 'BDT',
-                'tran_id': f'TRAN_{request.user.id}_{order.id if "order" in locals() else "NEW"}',  # Unique txn id, improve as needed
+                'tran_id': f'TRAN_{request.user.id}_{order.id}',
                 'success_url': request.build_absolute_uri('/payment-success/'),
                 'fail_url': request.build_absolute_uri('/payment-fail/'),
                 'cancel_url': request.build_absolute_uri('/payment-cancel/'),
                 'emi_option': 0,
                 'cus_name': request.user.get_full_name() or request.user.username,
                 'cus_email': request.user.email,
-                'cus_phone': '',  # Add phone if available
-                'cus_add1': 'Customer Address',  # You can get real address from user profile
+                'cus_phone': '',
+                'cus_add1': 'Customer Address',
                 'cus_city': 'City',
                 'cus_postcode': '0000',
                 'cus_country': 'Bangladesh',
@@ -328,7 +391,6 @@ def process_payment(request):
                 'product_profile': 'general',
             }
 
-            # Call SSLCommerz API
             try:
                 response = requests.post(settings.SSLCOMMERZ_API_SESSION_URL, data=payment_data)
                 response_data = response.json()
@@ -337,7 +399,7 @@ def process_payment(request):
                 return redirect('make_payment')
 
             if response_data.get('status') == 'SUCCESS':
-                # Redirect user to SSLCommerz payment page
+                cart_items.delete()
                 return redirect(response_data['GatewayPageURL'])
             else:
                 messages.error(request, "Payment initiation failed. Please try again.")
@@ -348,16 +410,17 @@ def process_payment(request):
             return redirect('make_payment')
 
     return redirect('cart')
-# Initiate SSLCommerz Payment
+
+# Initiate SSLCommerz Payment (for testing)
 @login_required
 def initiate_payment(request):
     if request.method == "POST":
         payment_data = {
             'store_id': settings.SSLCOMMERZ_STORE_ID,
             'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
-            'total_amount': 100,  # Change as needed
+            'total_amount': 100,
             'currency': 'BDT',
-            'tran_id': 'TEST12345',  # Generate unique ID in production
+            'tran_id': 'TEST12345',
             'success_url': 'http://127.0.0.1:8000/payment-success/',
             'fail_url': 'http://127.0.0.1:8000/payment-fail/',
             'cancel_url': 'http://127.0.0.1:8000/payment-cancel/',
@@ -377,14 +440,49 @@ def initiate_payment(request):
 
         response = requests.post(settings.SSLCOMMERZ_API_SESSION_URL, data=payment_data)
         response_data = response.json()
-
         if response_data.get('status') == 'SUCCESS':
             return redirect(response_data['GatewayPageURL'])
         else:
-            messages.error(request, "Payment initiation failed.")
-            return redirect('make_payment')  # Your payment form view
-    else:
-        return redirect('make_payment')
+            return HttpResponse("Payment initiation failed")
+    return render(request, 'initiate_payment.html')
 
-def order_success(request):
-    return render(request, 'order_success.html')
+# SSLCommerz Payment Success Webhook
+@csrf_exempt
+def sslcommerz_payment_success(request):
+    if request.method == 'POST':
+        tran_id = request.POST.get('tran_id')
+        val_id = request.POST.get('val_id')
+        amount = request.POST.get('amount')
+        card_type = request.POST.get('card_type')
+        bank_tran_id = request.POST.get('bank_tran_id')
+        currency = request.POST.get('currency')
+        store_amount = request.POST.get('store_amount')
+        status = request.POST.get('status')
+        tran_date = request.POST.get('tran_date')
+        card_no = request.POST.get('card_no')
+        currency_type = request.POST.get('currency_type')
+        verify_sign = request.POST.get('verify_sign')
+
+        try:
+            order = Order.objects.get(tran_id=tran_id)
+        except Order.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': 'Order not found'}, status=404)
+
+        payment, created = Payment.objects.get_or_create(order=order)
+        payment.payment_status = status
+        payment.payment_date = tran_date
+        payment.bank_transaction_id = bank_tran_id
+        payment.card_type = card_type
+        payment.card_no = card_no
+        payment.amount = Decimal(amount)
+        payment.currency = currency
+        payment.val_id = val_id
+        payment.verify_sign = verify_sign
+        payment.save()
+
+        order.status = 'Paid' if status == 'VALID' else 'Failed'
+        order.save()
+
+        return JsonResponse({'status': 'success', 'message': 'Payment recorded successfully'})
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
