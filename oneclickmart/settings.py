@@ -25,8 +25,8 @@ SECRET_KEY = 'django-insecure-h@2w@tw$8h*8m-_s6#7o!9rw(d#e8+xrqu20r++u^z*t)tzwex
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
 
+ALLOWED_HOSTS = ['www.oneclickmart.com', 'localhost', '127.0.0.1']
 
 # Application definition
 
@@ -146,9 +146,6 @@ SSLCOMMERZ_MERCHANT_PANEL_URL = 'https://sandbox.sslcommerz.com/manage/'
 SSLCOMMERZ_REGISTERED_URL = 'www.oneclickmart.com'
 
 
-# Add this at the bottom of your settings.py
-
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
 
 # Email Configuration (Add these in settings.py)
 

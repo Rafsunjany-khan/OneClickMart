@@ -46,6 +46,10 @@ class SignupForm(forms.Form):
         if password and confirm and password != confirm:
             raise ValidationError("Passwords do not match.")
 
+# forms.py
+class OTPForm(forms.Form):
+    otp = forms.CharField(max_length=6, widget=forms.TextInput(attrs={'class': 'form-control'}))
+
 
 class UserProfileForm(forms.ModelForm):
     class Meta:
