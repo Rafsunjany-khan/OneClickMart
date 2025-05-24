@@ -13,11 +13,11 @@ urlpatterns = [
     path('activate/<uidb64>/<token>/', views.activate, name='activate'),
     path('login/', views.custom_login, name='login'),
     path('logout/', auth_views.LogoutView.as_view(next_page='home'), name='logout'),
-    #path('logout/', views.user_logout, name='logout'),
     path('profile/', views.profile, name='profile'),
     path('update_profile/', views.update_profile, name='update_profile'),
-    path('change-password/', views.change_password, name='change_password'),
+    # Keep only CustomPasswordChangeView for password change
     path('change-password/', CustomPasswordChangeView.as_view(), name='change_password'),
+
     path('cart/', views.cart_view, name='cart'),
     path('update-cart/', views.update_cart, name='update_cart'),
     path('clear-cart/', views.clear_cart, name='clear_cart'),
@@ -25,12 +25,18 @@ urlpatterns = [
     path('product/<int:id>/', views.product_detail, name='product_detail'),
     path('make-payment/', views.make_payment, name='make_payment'),
     path('process-payment/', views.process_payment, name='process_payment'),
-    #path('initiate-payment/', views.initiate_payment, name='initiate_payment'),
-    path('sslcommerz/success/', views.payment_success, name='payment_success'),
-    path('sslcommerz/fail/', views.payment_fail, name='payment_fail'),
-    path('sslcommerz/cancel/', views.payment_cancel, name='payment_cancel'),
 
     path('order-success/', views.order_success, name='order_success'),
 
+    path('pay/<int:order_id>/', views.initiate_sslcommerz_payment, name='sslcommerz_payment'),
+    # Updated to include order_id and point to your success handler
+    path('sslcommerz/success/<int:order_id>/', views.sslcommerz_payment_success, name='payment_success'),
+    path('sslcommerz/fail/', views.payment_fail, name='payment_fail'),
+    path('sslcommerz/cancel/', views.payment_cancel, name='payment_cancel'),
+
+    path('sslcommerz/success/<int:order_id>/', views.payment_success, name='payment_success'),
+    path('sslcommerz/fail/<int:order_id>/', views.payment_fail, name='payment_fail'),
+    path('sslcommerz/cancel/<int:order_id>/', views.payment_cancel, name='payment_cancel'),
 ]
+
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

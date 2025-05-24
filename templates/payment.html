@@ -1,7 +1,6 @@
 {% load static %}
 {% load custom_filters %}
 
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8" />
@@ -61,7 +60,7 @@
                     <button type="submit" class="btn btn-success px-4 shadow-sm">
                         <i class="bi bi-credit-card-2-front-fill me-1"></i> Pay Now
                     </button>
-                    <a href="{% url 'order_success' %}" class="btn btn-outline-secondary px-4 shadow-sm ms-2">
+                    <a href="{% url 'cart' %}" class="btn btn-outline-secondary px-4 shadow-sm ms-2">
                         <i class="bi bi-arrow-left me-1"></i> Back to Cart
                     </a>
                 </form>

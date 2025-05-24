@@ -40,7 +40,7 @@ class Product(TimeStampedModel):
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=10, decimal_places=2)
     discount_percentage = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
-    stock = models.PositiveIntegerField()
+    stock = models.PositiveIntegerField(default=0)
     available = models.BooleanField(default=True)
     unit = models.CharField(max_length=100, null=True, blank=True)
     rating = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, null=True, blank=True)
@@ -74,19 +74,32 @@ class Product(TimeStampedModel):
         reviews = Review.objects.filter(product=self, status=True).aggregate(average=Avg("rating"))
         avg = float(reviews["average"]) if reviews["average"] is not None else 0
         self.rating = avg
-        self.save(update_fields=['rating'])  # Save the new rating to DB
+        self.save(update_fields=['rating'])
         return avg
 
     def count_review(self):
         reviews = Review.objects.filter(product=self, status=True).aggregate(count=Count("id"))
         return int(reviews["count"]) if reviews["count"] is not None else 0
 
+    def reduce_stock(self, quantity):
+        """
+        Reduce the stock by `quantity`. Ensures stock doesn't go below zero.
+        Call this method after payment confirmation for order items.
+        """
+        if quantity > 0:
+            self.stock = max(self.stock - quantity, 0)
+            self.save(update_fields=['stock'])
+
+    def reduce_stock(self, quantity):
+        if quantity > 0:
+            self.stock = max(self.stock - quantity, 0)
+            self.save(update_fields=['stock'])
+
     class Meta:
         ordering = ("-created_at",)
 
     def __str__(self):
         return self.name
-
 
 class ProductImage(models.Model):
     product = models.ForeignKey(Product, related_name="images", on_delete=models.CASCADE)
@@ -130,6 +143,12 @@ class CartItem(models.Model):
     def __str__(self):
         return f"{self.quantity} x {self.product.name} for {self.user.username}"
 
+    def save(self, *args, **kwargs):
+        if not self.pk:  # Only update stock on first save
+            self.product.stock = max(0, self.product.stock - self.quantity)
+            self.product.save()
+        super().save(*args, **kwargs)
+
 
 class Order(models.Model):
     STATUS_CHOICES = [
@@ -141,10 +160,11 @@ class Order(models.Model):
     ]
 
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='orders')
-    total_amount = models.DecimalField(max_digits=12, decimal_places=2)
+    total_amount = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     ordered_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Pending')
     shipping_address = models.CharField(max_length=255, blank=True)
+    transaction_id = models.CharField(max_length=100, blank=True, null=True)
     payment_method = models.CharField(max_length=20, choices=PAYMENT_METHOD_CHOICES, default='Cash')
 
     def __str__(self):
@@ -154,7 +174,7 @@ class Order(models.Model):
 class OrderItem(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name='items')
     product = models.ForeignKey(Product, on_delete=models.SET_NULL, null=True)
-    quantity = models.PositiveIntegerField()
+    quantity = models.PositiveIntegerField(default=1)
     price = models.DecimalField(max_digits=10, decimal_places=2)  # Price at time of order
 
     def __str__(self):
@@ -177,12 +197,29 @@ class Payment(models.Model):
     paid_at = models.DateTimeField(auto_now_add=True)
 
     def save(self, *args, **kwargs):
-        # Automatically mark SSLCommerz payments as Completed if not failed
-        if self.payment_method == 'SSLCommerz' and self.status != 'Failed':
-            self.status = 'Completed'
-            self.order.status = 'Completed'  # Also update order status
+        is_new_payment = self.pk is None  # Check if this is a new Payment object
+        previous_status = None
+
+        if not is_new_payment:
+            previous_status = Payment.objects.get(pk=self.pk).status
+
+        super().save(*args, **kwargs)  # Save payment first
+
+        # Only run stock update if payment just marked as Completed (and was not previously)
+        if self.status == 'Completed' and (is_new_payment or previous_status != 'Completed'):
+            self.order.status = 'Completed'
             self.order.save(update_fields=['status'])
-        super().save(*args, **kwargs)
+            self.update_product_stock()
+
+    def update_product_stock(self):
+        for item in self.order.items.all():
+            product = item.product
+            if product and product.stock >= item.quantity:
+                product.stock -= item.quantity
+            elif product:
+                product.stock = 0
+            product.save(update_fields=['stock'])
 
     def __str__(self):
         return f"Payment for Order #{self.order.id} - {self.status}"
+
