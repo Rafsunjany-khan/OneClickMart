@@ -7,23 +7,16 @@
   <title>Your Cart</title>
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
   <style>
-     .navbar-brand, .nav-link {
-            color: #fff !important;
-        }
-
-        .nav-link:hover {
-            color: #f0a500 !important;
-        }
-
-        .logout {
-            margin-left: 20px;
-            background-color: #dc3545;
-            padding: 8px 14px;
-            border-radius: 4px;
-            color: white !important;
-            font-weight: bold;
-        }
-
+    .navbar-brand, .nav-link { color: #fff !important; }
+    .nav-link:hover { color: #f0a500 !important; }
+    .logout {
+      margin-left: 20px;
+      background-color: #dc3545;
+      padding: 8px 14px;
+      border-radius: 4px;
+      color: white !important;
+      font-weight: bold;
+    }
     .cart-img {
       width: 80px;
       height: 80px;
@@ -37,90 +30,97 @@
 <body>
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand" href="{% url 'home' %}">
-            <img src="{% static 'assets/images/logo/onelclick.PNG' %}" alt="Logo" style="width: 160px; height: 50px;">
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
-                data-bs-target="#navbarNav" aria-controls="navbarNav"
-                aria-expanded="false" aria-label="Toggle navigation">
-            <span class="navbar-toggler-icon"></span>
-        </button>
+  <div class="container-fluid px-4">
+    <a class="navbar-brand" href="{% url 'home' %}">
+      <img src="{% static 'assets/images/logo/onelclick.PNG' %}" alt="Logo" style="width: 160px; height: 50px;">
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+            data-bs-target="#navbarNav" aria-controls="navbarNav"
+            aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
 
-        <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
-            <ul class="navbar-nav align-items-center">
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'home' %}">HOME</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#">PRODUCTS</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="{% url 'cart' %}">CART</a>
-                </li>
-                <li class="nav-item">
-                    <a class="logout nav-link" href="{% url 'logout' %}">Logout</a>
-                </li>
-            </ul>
-        </div>
+    <div class="collapse navbar-collapse justify-content-end" id="navbarNav">
+      <ul class="navbar-nav align-items-center">
+        <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">HOME</a></li>
+        <li class="nav-item"><a class="nav-link" href="#">PRODUCTS</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'cart' %}">CART</a></li>
+        <li class="nav-item"><a class="logout nav-link" href="{% url 'logout' %}">Logout</a></li>
+      </ul>
     </div>
+  </div>
 </nav>
 
 <div class="container my-5">
 
-  <!-- Heading -->
   <div class="d-flex justify-content-between align-items-center mb-4">
     <h2>Your Cart</h2>
     <p class="text-muted">Logged in as: <strong>{{ request.user.email }}</strong></p>
   </div>
 
   {% if cart_items %}
-    <form method="post" action="{% url 'update_cart' %}">
-      {% csrf_token %}
-      <table class="table table-bordered cart-table">
-        <thead class="table-light">
-          <tr>
-            <th>Image</th>
-            <th>Product Name</th>
-            <th>Unit Price</th>
-            <th>Quantity</th>
-            <th>Total</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
+    <table class="table table-bordered cart-table">
+      <thead class="table-light">
+        <tr>
+          <th>Image</th>
+          <th>Product Name</th>
+          <th>Unit Price</th>
+          <th>Quantity</th>
+          <th>Total</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
         {% for item in cart_items %}
-          <tr>
-            <td>
-              {% if item.product.images.first %}
-                <img src="{{ item.product.images.first.image.url }}" class="cart-img">
-              {% else %}
-                <img src="{% static 'image/no-image.jpg' %}" class="cart-img">
-              {% endif %}
-            </td>
-            <td>{{ item.product.name }}</td>
-            <td>${{ item.product.price }}</td>
-            <td>{{ item.quantity }}</td>
-            <td>${{ item.quantity|mul:item.product.price }}</td>
-            <td>
-              <form method="post" action="{% url 'update_cart' %}" class="d-flex gap-1">
+        <tr>
+          <td>
+            {% if item.product.images.first %}
+              <img src="{{ item.product.images.first.image.url }}" class="cart-img" alt="Product Image">
+            {% else %}
+              <img src="{% static 'image/no-image.jpg' %}" class="cart-img" alt="No Image">
+            {% endif %}
+          </td>
+          <td>{{ item.product.name }}</td>
+          <td>
+            {% if item.price_at_added_time %}
+              ${{ item.price_at_added_time|floatformat:2 }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>{{ item.quantity }}</td>
+          <td>
+            {% if item.total_price %}
+              ${{ item.total_price|floatformat:2 }}
+            {% else %}
+              N/A
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1">
+              <form method="post" action="{% url 'update_cart' %}">
                 {% csrf_token %}
                 <input type="hidden" name="product_id" value="{{ item.product.id }}">
-                <button type="submit" name="action" value="add" class="btn btn-sm btn-success">+</button>
-                <button type="submit" name="action" value="remove" class="btn btn-sm btn-danger">-</button>
+                <input type="hidden" name="action" value="add">
+                <button type="submit" class="btn btn-sm btn-success">+</button>
               </form>
-            </td>
-          </tr>
+              <form method="post" action="{% url 'update_cart' %}">
+                {% csrf_token %}
+                <input type="hidden" name="product_id" value="{{ item.product.id }}">
+                <input type="hidden" name="action" value="remove">
+                <button type="submit" class="btn btn-sm btn-danger">-</button>
+              </form>
+            </div>
+          </td>
+        </tr>
         {% endfor %}
-        </tbody>
-      </table>
-    </form>
+      </tbody>
+    </table>
 
-    <!-- Summary -->
     <div class="card p-4">
       <h5 class="mb-3">Cart Summary</h5>
       <p>Discount (if any): <strong>$0.00</strong></p>
-      <p>VAT (5%): <strong>${{ total|floatformat:2|mul:"0.05"|floatformat:2 }}</strong></p>
+      <p>VAT (5%): <strong>${{ total|mul:"0.05"|floatformat:2 }}</strong></p>
       <p class="fw-bold">Grand Total: ${{ total|add:total|mul:"0.05"|floatformat:2 }}</p>
 
       <div class="d-flex justify-content-between mt-4">
@@ -136,5 +136,7 @@
     <p>Your cart is empty.</p>
   {% endif %}
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

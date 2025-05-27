@@ -186,102 +186,140 @@ def change_password(request):
     return render(request, 'change_password.html', {'form': form})
 
 # Add to Cart
+
 @login_required
 def add_to_cart(request, product_id):
     product = get_object_or_404(Product, id=product_id)
 
-    # Get or create the cart item
     cart_item, created = CartItem.objects.get_or_create(
         user=request.user,
         product=product,
-        defaults={'quantity': 1}
+        order__isnull=True,
+        is_paid=False,
+        defaults={'quantity': 1, 'price_at_added_time': product.get_discounted_price()}
     )
     if not created:
         cart_item.quantity += 1
+        cart_item.price_at_added_time = product.get_discounted_price()  # update price if needed
         cart_item.save()
 
     messages.success(request, f"{product.name} added to cart.")
     return redirect('cart')
 
 
-# View Cart
+# ✅ View Cart Page
 @login_required
 def cart_view(request):
-    try:
-        order = Order.objects.get(user=request.user, status='Pending')
-        cart_items = order.items.select_related('product')
-        total = sum(item.product.price * item.quantity for item in cart_items)
-    except Order.DoesNotExist:
-        cart_items = []
-        total = 0
+    cart_items = CartItem.objects.filter(user=request.user, order__isnull=True, is_paid=False).select_related('product')
+    print(f"DEBUG: Cart items count = {cart_items.count()}")
+    for item in cart_items:
+        print(f"DEBUG: {item.product.name}, quantity: {item.quantity}, order: {item.order}, paid: {item.is_paid}")
+    total = sum(item.product.price * item.quantity for item in cart_items)
 
-    return render(request, 'cart.html', {'cart_items': cart_items, 'total': total})
+    return render(request, 'cart.html', {
+        'cart_items': cart_items,
+        'total': total,
+    })
 
-# Update Cart Item Quantity
+# ✅ Add or Remove Cart Items
 @login_required
 def update_cart(request):
     if request.method == 'POST':
-        action = request.POST.get('action')
         product_id = request.POST.get('product_id')
-        cart_item = CartItem.objects.filter(user=request.user, product_id=product_id).first()
+        action = request.POST.get('action')
 
-        if cart_item:
+        if not product_id or not action:
+            print("❌ Missing product_id or action in POST data.")
+            return redirect('cart')
+
+        product = get_object_or_404(Product, id=product_id)
+
+        cart_item_qs = CartItem.objects.filter(user=request.user, product=product, order__isnull=True, is_paid=False)
+
+        if cart_item_qs.exists():
+            cart_item = cart_item_qs.first()
             if action == 'add':
                 cart_item.quantity += 1
                 cart_item.save()
+                print(f"✅ Added 1 to quantity for {product.name}. New quantity: {cart_item.quantity}")
             elif action == 'remove':
-                cart_item.quantity -= 1
-                if cart_item.quantity <= 0:
-                    cart_item.delete()
-                else:
+                if cart_item.quantity > 1:
+                    cart_item.quantity -= 1
                     cart_item.save()
+                    print(f"✅ Removed 1 from quantity for {product.name}. New quantity: {cart_item.quantity}")
+                else:
+                    cart_item.delete()
+                    print(f"🗑️ Deleted cart item for {product.name}.")
+        else:
+            if action == 'add':
+                CartItem.objects.create(user=request.user, product=product, quantity=1, is_paid=False)
+                print(f"🆕 Created new cart item for {product.name} with quantity 1.")
+            else:
+                print(f"❌ No cart item to remove for {product.name}.")
+
+        # Debug print all cart items after update
+        print(f"Cart items for user {request.user} after update:")
+        for ci in CartItem.objects.filter(user=request.user, order__isnull=True, is_paid=False):
+            print(f" - Product: {ci.product.name}, Quantity: {ci.quantity}, Paid: {ci.is_paid}, Order: {ci.order}")
+
+    else:
+        print("❌ update_cart called with non-POST method.")
+
     return redirect('cart')
 
-# Clear Cart
+# ✅ Clear All Cart Items
 @login_required
 def clear_cart(request):
     if request.method == 'POST':
-        CartItem.objects.filter(user=request.user).delete()
+        CartItem.objects.filter(user=request.user, order__isnull=True, is_paid=False).delete()
+        return redirect('cart')
     return redirect('cart')
 
-# Checkout Page
+
+
 @login_required
-def checkout_view(request):
-    cart_items = CartItem.objects.filter(user=request.user)
+def checkout(request):
+    cart_items = CartItem.objects.filter(user=request.user, is_paid=False)
     if not cart_items.exists():
         messages.warning(request, "Your cart is empty.")
         return redirect('cart')
 
-    total_price = sum(item.product.price * item.quantity for item in cart_items)
+    if request.method == 'POST':
+        total_price = sum(item.product.get_discounted_price() * item.quantity for item in cart_items)
 
-    return render(request, 'checkout.html', {
-        'cart_items': cart_items,
-        'total_price': total_price,
-    })
+        # Create the order
+        order = Order.objects.create(
+            user=request.user,
+            total_amount=total_price,
+            status='Pending',
+            shipping_address=request.user.userprofile.address_line_1  # Optional: use profile
+        )
 
-# Payment Page (Choose Payment Method)
-@login_required
-def make_payment(request):
-    try:
-        order = Order.objects.get(user=request.user, status='Pending')
-    except Order.DoesNotExist:
-        messages.warning(request, "Your cart is empty or no pending order found.")
-        return redirect('cart')
+        # Create OrderItems for each cart item
+        for item in cart_items:
+            OrderItem.objects.create(
+                order=order,
+                product=item.product,
+                quantity=item.quantity,
+                price=item.product.get_discounted_price(),
+            )
+            # Link cart items to this order
+            item.order = order
+            item.is_paid = True  # Mark as processed
+            item.save()
 
-    order_items = order.items.select_related('product')
+        # Store order ID in session for the payment step
+        request.session['pending_order_id'] = order.id
 
-    if not order_items.exists():
-        messages.warning(request, "Your cart is empty. Please add products before proceeding.")
-        return redirect('cart')
+        return redirect('make_payment')  # Replace with your actual URL name
 
-    total = sum(item.product.price * item.quantity for item in order_items)
+    else:
+        total_price = sum(item.product.get_discounted_price() * item.quantity for item in cart_items)
+        return render(request, 'checkout.html', {
+            'cart_items': cart_items,
+            'total_price': total_price,
+        })
 
-    return render(request, 'payment.html', {
-        'cart_items': order_items,
-        'total_amount': total,
-        'order': order,
-    })
-# Order Success Page
 @login_required
 def order_success(request):
     return render(request, 'order_success.html')
@@ -318,115 +356,175 @@ def some_sslcommerz_api_call(data):
         return {'status': 'FAILED', 'error': str(e)}
 
 
+# Payment Page (Choose Payment Method)
+
+@login_required
+def make_payment(request):
+    user = request.user
+    cart_items = CartItem.objects.filter(user=user, is_paid=False, order__isnull=True)
+
+    if not cart_items.exists():
+        messages.warning(request, "No items in your cart.")
+        return redirect('cart')
+
+    total_amount = sum(item.product.price * item.quantity for item in cart_items)
+
+    if request.method == 'POST':
+        payment_method = request.POST.get('payment_method')
+
+        if payment_method == 'cash':
+            order = Order.objects.create(
+                user=user,
+                total_amount=total_amount,
+                payment_method='cash',
+                status='Completed'
+            )
+            for item in cart_items:
+                item.order = order
+                item.is_paid = True
+                item.save()
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=item.product.price
+                )
+                item.product.stock_quantity -= item.quantity
+                item.product.save()
+            messages.success(request, "Order placed successfully with Cash.")
+            return redirect('order_confirmation', order_id=order.id)
+
+        elif payment_method == 'sslcommerz':
+            order = Order.objects.create(
+                user=user,
+                total_amount=total_amount,
+                payment_method='SSLCommerz',
+                status='Pending'
+            )
+            for item in cart_items:
+                item.order = order
+                item.is_paid = False
+                item.save()
+                OrderItem.objects.create(
+                    order=order,
+                    product=item.product,
+                    quantity=item.quantity,
+                    price=item.product.price
+                )
+            return redirect('sslcommerz_payment', order_id=order.id)
+
+    return render(request, 'make_payment.html', {
+        'cart_items': cart_items,
+        'total_amount': total_amount
+    })
+
+
 @login_required
 def process_payment(request):
-    if request.method == "POST":
-        user = request.user
+    if request.method == 'POST':
         payment_method = request.POST.get('payment_method')
-        total_amount = request.POST.get('total_amount')
+        user = request.user
+        order_id = request.session.get('pending_order_id')
 
-        # Create the order
-        order = Order.objects.create(
-            user=user,
-            total_amount=total_amount,
-            payment_method=payment_method,
-            status='Pending',
-            # You can add shipping_address from user profile or form here
-        )
+        if not order_id:
+            messages.error(request, "No pending order found.")
+            return redirect('cart')
+
+        order = get_object_or_404(Order, id=order_id, user=user)
 
         if payment_method == 'Cash':
-            # Handle cash payment logic here (e.g., mark order as Pending)
-            return redirect('order_success')  # or your success page
+            update_stock(order)
+
+            # Clear session and redirect
+            request.session.pop('pending_order_id', None)
+            messages.success(request, "Your order has been placed successfully with Cash payment.")
+            return redirect('order_success')
 
         elif payment_method == 'SSLCommerz':
-            # Prepare payload for SSLCommerz
-            payload = {
-                'store_id': settings.SSLCOMMERZ_STORE_ID,
-                'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
-                'total_amount': str(total_amount),
+            ssl_data = {
+                'total_amount': order.total_amount,
                 'currency': 'BDT',
-                'tran_id': f"order-{order.id}-{uuid.uuid4()}",
+                'tran_id': str(uuid.uuid4()),  # unique transaction id
                 'success_url': request.build_absolute_uri(reverse('payment_success', kwargs={'order_id': order.id})),
                 'fail_url': request.build_absolute_uri(reverse('payment_fail', kwargs={'order_id': order.id})),
                 'cancel_url': request.build_absolute_uri(reverse('payment_cancel', kwargs={'order_id': order.id})),
-                'cus_name': user.get_full_name() or user.username,
+                'cus_name': user.get_full_name(),
                 'cus_email': user.email,
-                'cus_add1': order.shipping_address or '',
-                'cus_city': 'Dhaka',
-                'cus_state': '',
-                'cus_postcode': '',
-                'cus_country': 'Bangladesh',
-                'cus_phone': '01701983377',
+                'cus_add1': user.userprofile.address_line_1 if hasattr(user, 'userprofile') else 'N/A',
+                'cus_phone': user.userprofile.phone if hasattr(user, 'userprofile') else 'N/A',
                 'shipping_method': 'NO',
-                'product_name': 'Samsung Galaxy S24 Ultra 5G',
-                'product_category': 'Electronic',
-                'product_profile': 'physical-goods',  # <--- Add this field!
-                'num_of_item': 1,
+                'product_name': f"Order#{order.id}",
+                'product_category': 'General',
+                'product_profile': 'general',
             }
 
-            # Call SSLCommerz API
-            response = requests.post(
-                'https://sandbox.sslcommerz.com/gwprocess/v4/api.php',
-                data=payload
-            )
+            # Simulate SSLCommerz API call (replace with actual integration)
+            response = some_sslcommerz_api_call(ssl_data)
 
-            if response.status_code == 200:
-                result = response.json()
-                if result.get('status') == 'SUCCESS':
-                    gateway_url = result.get('GatewayPageURL')
-                    if gateway_url:
-                        return redirect(gateway_url)
-                    else:
-                        # Handle missing GatewayPageURL
-                        messages.error(request, "SSLCommerz response missing GatewayPageURL.")
-                else:
-                    # Handle failure status from SSLCommerz
-                    error_msg = result.get('failedreason') or 'SSLCommerz payment initiation failed.'
-                    messages.error(request, error_msg)
+            if response.get('status') == 'SUCCESS' and response.get('GatewayPageURL'):
+                return redirect(response['GatewayPageURL'])
             else:
-                messages.error(request, "Failed to connect to SSLCommerz API.")
-
-            # Redirect back to payment page on failure
+                messages.error(request, f"SSLCommerz Error: {response.get('error', 'Unknown error')}")
+                return redirect('cart')
+        else:
+            messages.error(request, "Invalid payment method selected.")
             return redirect('make_payment')
 
-    # For GET or other methods, you can redirect or render as needed
-    return redirect('cart')  # Or wherever appropriate
+    return redirect('checkout')
 
 @csrf_exempt
-def sslcommerz_payment_success(request,order_id):
+def sslcommerz_payment_success(request):
     if request.method == 'POST':
-        tran_id = request.POST.get('tran_id')
         val_id = request.POST.get('val_id')
         status = request.POST.get('status')
-        amount = request.POST.get('amount')
-
-        if not all([tran_id, val_id, status, amount]):
-            return HttpResponse("Missing parameters", status=400)
+        tran_id = request.POST.get('tran_id')
+        amount = float(request.POST.get('amount', 0))
+        email = request.POST.get('cus_email')
 
         if status == 'VALID':
             try:
-                order = Order.objects.get(transaction_id=tran_id)
-            except Order.DoesNotExist:
-                return HttpResponse("Order not found", status=404)
+                user = User.objects.get(email=email)
+                cart_items = CartItem.objects.filter(user=user, is_paid=False, order__isnull=True)
 
-            order.status = 'Completed'
-            order.save()
+                if cart_items.exists():
+                    order = Order.objects.create(
+                        user=user,
+                        total_amount=amount,
+                        payment_method='sslcommerz',
+                        status='Completed'
+                    )
 
-            Payment.objects.create(
-                order=order,
-                transaction_id=tran_id,
-                payment_method='SSLCommerz',
-                amount=Decimal(amount),
-                status='Completed'
-            )
+                    for item in cart_items:
+                        item.order = order
+                        item.is_paid = True
+                        item.save()
 
-            update_stock(order)
-            CartItem.objects.filter(user=order.user).delete()
+                        OrderItem.objects.create(
+                            order=order,
+                            product=item.product,
+                            quantity=item.quantity,
+                            price=item.product.price
+                        )
 
-            return HttpResponse("Payment completed successfully")
-        else:
-            return HttpResponse("Payment not valid", status=400)
-    return HttpResponse("Invalid method", status=405)
+                        item.product.stock_quantity -= item.quantity
+                        item.product.save()
+
+                    Payment.objects.create(
+                        user=user,
+                        order=order,
+                        amount=amount,
+                        payment_method='sslcommerz',
+                        status='Completed',
+                        transaction_id=tran_id
+                    )
+
+                    return HttpResponse("Payment successful and order created")
+
+            except Exception as e:
+                print(e)
+                return HttpResponse("Something went wrong", status=500)
+
+    return HttpResponse("Invalid request", status=400)
 
 
 
@@ -434,77 +532,82 @@ def calculate_cart_total(user):
     items = CartItem.objects.filter(user=user)
     return sum(item.product.price * item.quantity for item in items)
 
-def initiate_sslcommerz_payment(request):
-    if request.method == 'POST':
-        user = request.user
-        address = request.POST.get('shipping_address')  # Or use user.profile.address if stored
+@login_required
+def initiate_sslcommerz_payment(request, order_id):
+    order = get_object_or_404(Order, id=order_id, user=request.user, status='Pending')
 
-        # Step 1: Calculate total and generate unique transaction ID
-        total_amount = calculate_cart_total(user)
-        transaction_id = uuid.uuid4().hex
-
-        # Step 2: Save order in DB with status 'Pending'
-        order = Order.objects.create(
-            user=user,
-            total_amount=Decimal(total_amount),
-            shipping_address=address,
-            payment_method='SSLCommerz',
-            transaction_id=transaction_id
-        )
-
-        # Step 3: Prepare SSLCommerz payload
+    if request.method == 'GET':
         payload = {
             'store_id': settings.SSLCOMMERZ_STORE_ID,
             'store_passwd': settings.SSLCOMMERZ_STORE_PASSWORD,
-            'total_amount': float(total_amount),
+            'total_amount': float(order.total_amount),
             'currency': 'BDT',
-            'tran_id': transaction_id,
+            'tran_id': str(order.id),
             'success_url': request.build_absolute_uri(reverse('sslcommerz_success')),
             'fail_url': request.build_absolute_uri(reverse('sslcommerz_fail')),
             'cancel_url': request.build_absolute_uri(reverse('sslcommerz_cancel')),
 
-            'cus_name': user.get_full_name() or 'Customer',
-            'cus_email': user.email or 'customer@example.com',
-            'cus_add1': address or 'Address not provided',
+            'cus_name': request.user.get_full_name() or 'Customer',
+            'cus_email': request.user.email or 'customer@example.com',
+            'cus_add1': order.shipping_address or 'Address not provided',
             'cus_city': 'Dhaka',
             'cus_postcode': '1207',
             'cus_country': 'Bangladesh',
             'cus_phone': '01701983377',
 
             'product_category': 'Electronic',
-            'product_name': 'Cart Products',
+            'product_name': f"Order #{order.id}",
             'product_profile': 'physical-goods',
+            'emi_option': 0,
         }
 
-        # Step 4: Send request to SSLCommerz
-        response = requests.post('https://sandbox.sslcommerz.com/gwprocess/v4/api.php', data=payload)
-        data = response.json()
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; YourAppName/1.0; +https://yourwebsite.com)'
+        }
 
-        if data.get('status') == 'SUCCESS':
-            return redirect(data['GatewayPageURL'])  # Redirect user to payment page
-        else:
-            return HttpResponse("SSLCommerz payment initiation failed", status=500)
+        try:
+            response = requests.post(settings.SSLCOMMERZ_API_SESSION_URL, data=payload, headers=headers, timeout=10)
+            print(f"Response status code: {response.status_code}")
+            print(f"Response text: {response.text}")
+            data = response.json()
+
+            if data.get('status') == 'SUCCESS':
+                return redirect(data['GatewayPageURL'])
+            else:
+                return HttpResponse(f"Payment initiation failed: {data.get('failedreason', 'Unknown')}", status=500)
+        except Exception as e:
+            print(f"Exception during SSLCommerz payment initiation: {e}")
+            return HttpResponse(f"Payment initiation exception: {e}", status=500)
 
     return HttpResponse("Invalid request method", status=405)
 
+
 @login_required
-def payment_success(request, order_id):
-    try:
-        order = Order.objects.get(id=order_id, user=request.user)
-    except Order.DoesNotExist:
-        messages.error(request, "Order not found")
-        return redirect('cart')
+def payment_success(request):
+    tran_id = request.session.get('tran_id')
+    order_id = request.session.get('pending_order_id')
 
-    # You don't need to call get_object_or_404 again, you already have order
-    # order = get_object_or_404(Order, id=order_id, user=request.user) <-- remove this
+    if not order_id:
+        return HttpResponse("No order found to process payment. Session data: " + str(list(request.session.items())))
 
-    order.status = 'Completed'
-    order.save()
+    order = Order.objects.get(id=order_id)
 
-    update_stock(order)
-    CartItem.objects.filter(user=request.user).delete()
-    messages.success(request, "Payment successful!")
-    return redirect('order_success')
+    # Save payment
+    Payment.objects.create(
+        order=order,
+        transaction_id=tran_id,
+        amount=order.total_amount,
+        status='Completed',
+        payment_method='SSLCommerz'
+    )
+
+    # Clear session
+    request.session.pop('pending_order_id', None)
+    request.session.pop('tran_id', None)
+    request.session.pop('total', None)
+    request.session.pop('cart_item_ids', None)
+
+    return render(request, 'payment_success.html', {'order': order})
 
 
 @login_required
@@ -534,3 +637,17 @@ def sslcommerz_api_call(payload):
         return response.json()
     else:
         return {'status': 'FAILED'}
+
+@csrf_exempt
+def sslcommerz_success(request):
+    # handle success confirmation logic
+    return HttpResponse("Payment Success.")
+
+@csrf_exempt
+def sslcommerz_fail(request):
+    # handle fail confirmation logic
+    return HttpResponse("Payment Fail.")
+
+@csrf_exempt
+def sslcommerz_cancel(request):
+    return HttpResponse("Payment Canceled.")

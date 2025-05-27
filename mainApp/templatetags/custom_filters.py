@@ -9,13 +9,13 @@ def mul(value, arg):
     except (ValueError, TypeError):
         return ''
 
-@register.filter(name='add_class')
-def add_class(field, css_class):
-    return field.as_widget(attrs={"class": css_class})
-
-@register.filter
+@register.filter(name='multiply')
 def multiply(value, arg):
     try:
         return float(value) * int(arg)
-    except:
+    except (ValueError, TypeError):
         return 0
+
+@register.filter(name='add_class')
+def add_class(field, css_class):
+    return field.as_widget(attrs={"class": css_class})

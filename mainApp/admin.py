@@ -62,3 +62,14 @@ class PaymentAdmin(admin.ModelAdmin):
     actions = [approve_cash_payments]
 
 admin.site.register(Payment, PaymentAdmin)
+
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ('user', 'product', 'quantity', 'order', 'is_paid', 'added_at')
+    list_filter = ('is_paid', 'order')
+    search_fields = ('user__username', 'product__name')
+
+@admin.register(OrderItem)
+class OrderItemAdmin(admin.ModelAdmin):
+    list_display = ('order', 'product', 'quantity', 'price')
+    search_fields = ('product__name',)
