@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import UserProfile, Product, ProductImage, Review, Slider, CartItem, Order, OrderItem, Payment
+from .models import Product, ProductImage, Review, Slider, CartItem, Order, OrderItem, Payment
 
 class ProductImageInline(admin.TabularInline):
     model = ProductImage
@@ -16,11 +16,6 @@ class ProductAdmin(admin.ModelAdmin):
     inlines = [ProductImageInline]
     search_fields = ('name', 'description')
     list_filter = ('available',)
-
-@admin.register(UserProfile)
-class UserProfileAdmin(admin.ModelAdmin):
-    list_display = ('user', 'phone_number', 'city', 'postcode')
-    search_fields = ('user__username', 'phone_number', 'city')
 
 @admin.register(Review)
 class ReviewAdmin(admin.ModelAdmin):

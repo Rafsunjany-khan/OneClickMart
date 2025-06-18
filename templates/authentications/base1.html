@@ -1,0 +1,280 @@
+{% load static %}
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OneClickMart</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+  <style>
+    .navbar-brand, .nav-link {
+      color: #fff;
+    }
+    .navbar-brand:hover, .nav-link:hover {
+      color: #f0a500;
+    }
+    .product-card {
+      margin: 15px;
+      border: 1px solid #ddd;
+      padding: 10px;
+      text-align: center;
+    }
+    .product-price {
+      font-size: 18px;
+      font-weight: bold;
+    }
+    .product-old-price {
+      text-decoration: line-through;
+      color: #777;
+    }
+    .badge-new {
+      background-color: #f0a500;
+      color: white;
+    }
+    .footer {
+      background-color: #333;
+      color: white;
+      padding: 20px;
+    }
+    .footer a {
+      color: white;
+    }
+    .footer a:hover {
+      color: #f0a500;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar Section -->
+<nav class="navbar navbar-expand-lg navbar-light bg-primary">
+  <div class="container">
+    <a href="{% url 'home' %}">
+      <img src="{% static 'assets/images/logo/onelclick.PNG' %}" alt="Logo" style="width: 160px; height: 50px;">
+    </a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav"
+            aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'home' %}">HOME</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="{% url 'product_list' %}">PRODUCTS</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{% url 'cart' %}">CART</a>
+        </li>
+        {% if request.user.is_authenticated %}
+          <li class="nav-item">
+            <a class="nav-link" href="{% url 'profile' %}">PROFILE</a>
+          </li>
+          <li class="nav-item">
+            <form method="POST" action="{% url 'logout' %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-light">Logout</button>
+            </form>
+          </li>
+        {% else %}
+          <li class="nav-item">
+            <button type="button" class="btn btn-light" onclick="showLoginModal()">Login</button>
+          </li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<!-- Alert Messages -->
+{% if messages %}
+  {% for message in messages %}
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+  {% endfor %}
+{% endif %}
+
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header bg-primary text-white">
+        <h5 class="modal-title" id="loginModalLabel">🌟 Top Shop Name</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="POST" action="{% url 'login' %}">
+        {% csrf_token %}
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="id_username" class="form-label">Email</label>
+            <input type="email" name="email" class="form-control" id="id_username" required>
+          </div>
+          <div class="mb-3">
+            <label for="id_password" class="form-label">Password</label>
+            <input type="password" name="password" class="form-control" id="id_password" required>
+          </div>
+          <div class="d-flex justify-content-between">
+            <a href="#">Forgot password?</a>
+            <a href="{% url 'signup' %}">Register</a>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="submit" class="btn btn-success w-100">Login</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+
+
+
+<!-- Carousel Section -->
+<div id="exclusiveCarousel" class="carousel slide" data-bs-ride="carousel">
+  <div class="carousel-inner">
+    {% for slide in sliders %}
+      <div class="carousel-item {% if forloop.first %}active{% endif %}">
+        <div class="position-relative">
+          <img src="{{ slide.image.url }}" class="d-block w-100" alt="{{ slide.title }}">
+          <div class="position-absolute top-50 start-50 translate-middle text-center text-white">
+            <h2>{{ slide.title }}</h2>
+            <p>{{ slide.subtitle }}</p>
+            <a href="{{ slide.link }}" class="btn btn-primary">Add to Cart</a>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+  <button class="carousel-control-prev" type="button" data-bs-target="#exclusiveCarousel" data-bs-slide="prev">
+    <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Previous</span>
+  </button>
+  <button class="carousel-control-next" type="button" data-bs-target="#exclusiveCarousel" data-bs-slide="next">
+    <span class="carousel-control-next-icon" aria-hidden="true"></span>
+    <span class="visually-hidden">Next</span>
+  </button>
+</div>
+
+<!-- Product Section -->
+<div class="container my-5">
+  <div class="row g-4">
+    {% for product in products %}
+<div class="col-md-4">
+  <div class="card product-card h-100 position-relative">
+    {% with product.images.first as image %}
+      {% if image %}
+        <img src="{{ image.image.url }}" class="card-img-top" style="height: 200px; object-fit: cover;">
+      {% else %}
+        <img src="{% static 'image/no-image.jpg' %}" class="card-img-top" style="height: 200px; object-fit: cover;">
+      {% endif %}
+    {% endwith %}
+
+    {% if product.is_new_arrival %}
+      <span class="badge badge-new position-absolute m-2">New Arrival</span>
+    {% endif %}
+
+    <div class="card-body">
+      <h5 class="card-title">{{ product.name }}</h5>
+      {% if product.subtitle %}
+        <p class="text-muted small mb-2">{{ product.subtitle }}</p>
+      {% endif %}
+
+      {% if product.discount_percentage > 0 %}
+        <p class="product-price">
+          <span class="text-muted text-decoration-line-through">
+            ${{ product.price|floatformat:2 }}
+          </span>
+          <span class="text-success fw-bold ms-2">
+            ${{ product.discount_price|floatformat:2 }}
+          </span>
+        </p>
+      {% else %}
+        <p class="product-price fw-bold">
+          ${{ product.price|floatformat:2 }}
+        </p>
+      {% endif %}
+
+      <form action="{% url 'add_to_cart' product.id %}" method="post" class="d-inline">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-primary btn-sm">Add To Cart</button>
+      </form>
+
+      <a href="{% url 'product_detail' product.id %}" class="btn btn-outline-secondary btn-sm ms-2">See Details</a>
+    </div>
+  </div>
+</div>
+    {% endfor %}
+  </div>
+</div>
+
+<!-- Footer Section -->
+<footer class="footer text-center mt-5 py-4 bg-dark text-white">
+  <div class="container">
+    <div class="row">
+      <div class="col-md-3">
+        <img src="{% static 'assets/images/logo/onelclick.PNG' %}" alt="Logo" style="width: 180px; height: auto;">
+
+      </div>
+      <div class="col-md-5">
+<!-- Footer Social Icons -->
+<div class="col-md-12 text-center py-3">
+  <div class="text-white">
+    <!-- First Row -->
+    <a href="https://www.facebook.com/login" class="text-white mx-3" target="_blank">
+      <i class="fab fa-facebook fa-2x"></i>
+    </a>
+    <a href="https://web.whatsapp.com/" class="text-white mx-3" target="_blank">
+      <i class="fab fa-whatsapp fa-2x"></i>
+    </a>
+    <a href="https://twitter.com/login" class="text-white mx-3" target="_blank">
+      <i class="fab fa-twitter fa-2x"></i>
+    </a>
+  </div>
+  <div class="text-white mt-3">
+    <!-- Second Row -->
+    <a href="https://www.linkedin.com/login" class="text-white mx-3" target="_blank">
+      <i class="fab fa-linkedin fa-2x"></i>
+    </a>
+    <a href="https://www.instagram.com/accounts/login/" class="text-white mx-3" target="_blank">
+      <i class="fab fa-instagram fa-2x"></i>
+    </a>
+    <a href="https://accounts.google.com/signin" class="text-white mx-3" target="_blank">
+      <i class="fab fa-google fa-2x"></i>
+    </a>
+  </div>
+</div>
+      </div>
+      <div class="col-md-4">
+        <p>Contact Information:</p>
+        <p>Email: info@oneclickmart.com</p>
+        <p>Phone: 123-456-7890</p>
+      </div>
+    </div>
+    <div class="row mt-3">
+      <p>
+        <a href="#" class="text-white">Terms & Conditions</a> |
+        <a href="#" class="text-white">Privacy Policy</a>
+      </p>
+    </div>
+  </div>
+</footer>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/@popperjs/core@2.9.2/dist/umd/popper.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.min.js"></script>
+
+<!-- Modal Show Script -->
+<script>
+  function showLoginModal() {
+    var loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+    loginModal.show();
+  }
+</script>
+
+</body>
+</html>

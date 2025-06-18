@@ -1,36 +1,14 @@
-from django.contrib.auth.models import User
-import requests
+import requests,uuid
 from django.conf import settings
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.contrib.auth import authenticate, login, logout, update_session_auth_hash
 from django.contrib import messages
 from .models import *
-from .forms import SignupForm, UserProfileForm, OTPForm
-from decimal import Decimal
-from django.db import transaction
-from django.contrib.auth.forms import PasswordChangeForm
-from django.contrib.auth.views import PasswordChangeView
-from django.urls import reverse_lazy, reverse
+from django.urls import reverse
 
 from django.http import HttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
-from django.contrib.sites.shortcuts import get_current_site
-from django.template.loader import render_to_string
-from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
-from django.utils.encoding import force_bytes, force_str
-from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import EmailMessage
-
-from .utils import generate_otp, send_otp_via_email
-
-import uuid
-
-# Password Change View (class-based)
-class CustomPasswordChangeView(PasswordChangeView):
-    template_name = 'accounts/change_password.html'
-    success_url = reverse_lazy('profile')
 
 # Home Page
 def home(request):
@@ -47,146 +25,7 @@ def product_detail(request, id):
     product = get_object_or_404(Product, id=id)
     return render(request, 'product_detail.html', {'product': product})
 
-def signup(request):
-    if request.method == 'POST':
-        form = SignupForm(request.POST)
-        if form.is_valid():
-            user = User.objects.create_user(
-                username=form.cleaned_data['email'],
-                email=form.cleaned_data['email'],
-                password=form.cleaned_data['password'],
-                first_name=form.cleaned_data['first_name'],
-                last_name=form.cleaned_data['last_name'],
-                is_active=False
-            )
-            user.save()
-
-            otp = generate_otp()
-            request.session['otp'] = otp
-            request.session['user_id'] = user.id
-
-            send_otp_via_email(user.email, otp)
-
-            return redirect('verify_otp')  # Redirect to OTP form page
-    else:
-        form = SignupForm()
-    return render(request, 'signup.html', {'form': form})
-
-from django.contrib.auth import get_backends
-
-def verify_otp_view(request):
-    if request.method == 'POST':
-        input_otp = request.POST.get('otp')
-        session_otp = request.session.get('otp')
-        user_id = request.session.get('user_id')
-
-        if input_otp == session_otp and user_id:
-            user = User.objects.get(id=user_id)
-            user.is_active = True
-            user.save()
-
-            # Specify backend manually
-            backend = get_backends()[0]
-            user.backend = f"{backend.__module__}.{backend.__class__.__name__}"
-            login(request, user)
-
-            # Clean session data
-            request.session.pop('otp')
-            request.session.pop('user_id')
-
-            messages.success(request, 'OTP verified! You are now logged in.')
-            return redirect('home')
-        else:
-            messages.error(request, 'Invalid OTP, please try again.')
-
-    return render(request, 'verify_otp.html')
-
-def activate(request, uidb64, token):
-    try:
-        uid = force_str(urlsafe_base64_decode(uidb64))
-        user = User.objects.get(pk=uid)
-    except (TypeError, ValueError, OverflowError, User.DoesNotExist):
-        user = None
-
-    if user and default_token_generator.check_token(user, token):
-        user.is_active = True
-        user.save()
-        login(request, user)
-        return redirect('profile')
-    else:
-        return render(request, 'activation_invalid.html')
-
-# Login View
-def custom_login(request):
-    if request.method == 'POST':
-        email = request.POST.get('email')
-        password = request.POST.get('password')
-        user = authenticate(request, username=email, password=password)
-        if user:
-            login(request, user)
-            return redirect('profile')
-        else:
-            messages.error(request, "Invalid email or password.")
-            return redirect('login')
-    return render(request, 'login.html')
-
-# Logout View
-def user_logout(request):
-    logout(request)
-    return redirect('home')
-
-# Profile View
-@login_required
-def profile(request):
-    user = request.user
-    profile = getattr(user, 'userprofile', None)
-
-    purchase_history = Order.objects.filter(user=user).order_by('-ordered_at')
-    cart_items = CartItem.objects.filter(user=user)
-
-    context = {
-        'profile': profile,
-        'cart_items': cart_items,
-        'purchase_history': purchase_history,
-    }
-    return render(request, 'profile.html', context)
-
-# Update Profile View
-@login_required
-def update_profile(request):
-    profile, _ = UserProfile.objects.get_or_create(user=request.user)
-    if request.method == 'POST':
-        profile_form = UserProfileForm(request.POST, request.FILES, instance=profile)
-        if profile_form.is_valid():
-            profile_form.save()
-            messages.success(request, "Profile updated successfully!")
-            return redirect('profile')
-        else:
-            messages.error(request, "Please fix the errors below.")
-    else:
-        profile_form = UserProfileForm(instance=profile)
-
-    return render(request, 'profile_update.html', {'profile_form': profile_form})
-
-# Change Password View
-@login_required
-def change_password(request):
-    if request.method == 'POST':
-        form = PasswordChangeForm(user=request.user, data=request.POST)
-        if form.is_valid():
-            user = form.save()
-            update_session_auth_hash(request, user)
-            messages.success(request, 'Password changed successfully!')
-            return redirect('profile')
-        else:
-            messages.error(request, 'Please correct the errors below.')
-    else:
-        form = PasswordChangeForm(user=request.user)
-
-    return render(request, 'change_password.html', {'form': form})
-
 # Add to Cart
-
 @login_required
 def add_to_cart(request, product_id):
     product = get_object_or_404(Product, id=product_id)
@@ -206,8 +45,7 @@ def add_to_cart(request, product_id):
     messages.success(request, f"{product.name} added to cart.")
     return redirect('cart')
 
-
-# ✅ View Cart Page
+#View Cart Page
 @login_required
 def cart_view(request):
     cart_items = CartItem.objects.filter(user=request.user, order__isnull=True, is_paid=False).select_related('product')
@@ -221,7 +59,7 @@ def cart_view(request):
         'total': total,
     })
 
-# ✅ Add or Remove Cart Items
+#Add or Remove Cart Items
 @login_required
 def update_cart(request):
     if request.method == 'POST':
@@ -267,15 +105,13 @@ def update_cart(request):
 
     return redirect('cart')
 
-# ✅ Clear All Cart Items
+#Clear All Cart Items
 @login_required
 def clear_cart(request):
     if request.method == 'POST':
         CartItem.objects.filter(user=request.user, order__isnull=True, is_paid=False).delete()
         return redirect('cart')
     return redirect('cart')
-
-
 
 @login_required
 def checkout(request):
@@ -336,7 +172,6 @@ def update_stock(order):
             pass
 
 
-
 def some_sslcommerz_api_call(data):
     sslcommerz_url = "https://sandbox.sslcommerz.com/gwprocess/v4/api.php"  # Sandbox URL, use live URL for production
 
@@ -354,7 +189,6 @@ def some_sslcommerz_api_call(data):
     except requests.RequestException as e:
         # You can log the exception here for debugging
         return {'status': 'FAILED', 'error': str(e)}
-
 
 # Payment Page (Choose Payment Method)
 
@@ -417,7 +251,6 @@ def make_payment(request):
         'cart_items': cart_items,
         'total_amount': total_amount
     })
-
 
 @login_required
 def process_payment(request):
@@ -526,8 +359,6 @@ def sslcommerz_payment_success(request):
 
     return HttpResponse("Invalid request", status=400)
 
-
-
 def calculate_cart_total(user):
     items = CartItem.objects.filter(user=user)
     return sum(item.product.price * item.quantity for item in items)
@@ -581,7 +412,6 @@ def initiate_sslcommerz_payment(request, order_id):
 
     return HttpResponse("Invalid request method", status=405)
 
-
 @login_required
 def payment_success(request):
     tran_id = request.session.get('tran_id')
@@ -609,7 +439,6 @@ def payment_success(request):
 
     return render(request, 'payment_success.html', {'order': order})
 
-
 @login_required
 def payment_fail(request, order_id):
     order = get_object_or_404(Order, id=order_id, user=request.user)
@@ -625,10 +454,6 @@ def payment_cancel(request, order_id):
     order.save()
     messages.warning(request, "Payment cancelled.")
     return redirect('cart')
-
-
-
-import requests
 
 def sslcommerz_api_call(payload):
     sslcommerz_init_url = 'https://sandbox.sslcommerz.com/gwprocess/v4/api.php'  # Use production URL if live

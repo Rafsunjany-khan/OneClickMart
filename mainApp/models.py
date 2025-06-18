@@ -14,26 +14,12 @@ PAYMENT_METHOD_CHOICES = [
     ('SSLCommerz', 'SSLCommerz'),
 ]
 
-class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    profile_image = models.ImageField(upload_to='profile_images/', blank=True, null=True)
-    address_line_1 = models.CharField(max_length=255)
-    address_line_2 = models.CharField(max_length=255, blank=True)
-    phone_number = models.CharField(max_length=15)
-    city = models.CharField(max_length=100)
-    postcode = models.CharField(max_length=10)
-
-    def __str__(self):
-        return self.user.username
-
-
 class TimeStampedModel(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         abstract = True
-
 
 class Product(TimeStampedModel):
     name = models.CharField(max_length=255)

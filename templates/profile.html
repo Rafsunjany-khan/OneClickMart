@@ -139,7 +139,11 @@
                     <a class="nav-link" href="{% url 'cart' %}">CART</a>
                 </li>
                 <li class="nav-item">
-                    <a class="logout nav-link" href="{% url 'logout' %}">Logout</a>
+                    <form method="POST" action="{% url 'logout' %}" style="display: inline;">
+    {% csrf_token %}
+    <button type="submit" class="logout nav-link border-0 bg-transparent">Logout</button>
+  </form>
+
                 </li>
             </ul>
         </div>
